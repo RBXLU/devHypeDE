@@ -146,6 +146,9 @@ impl XdgShellHandler for HypeState {
     }
 
     fn app_id_changed(&mut self, surface: ToplevelSurface) {
+        // Роль окна известна только после того, как клиент сообщил свой
+        // идентификатор, — значит, раскладку нужно пересчитать сейчас.
+        self.relayout();
         self.notify_toplevel_changed(&surface);
     }
 }

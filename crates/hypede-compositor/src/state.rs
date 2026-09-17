@@ -206,18 +206,24 @@ impl HypeState {
         id
     }
 
+    /// Геометрия монитора целиком.
+    pub fn screen_area(&self) -> Rect {
+        self.space
+            .outputs()
+            .next()
+            .and_then(|output| self.space.output_geometry(output))
+            .map(|g| Rect::new(g.loc.x as f64, g.loc.y as f64, g.size.w as f64, g.size.h as f64))
+            // До появления монитора нужно на что-то опираться: раскладка
+            // считается ещё до того, как бэкенд сообщит размер.
+            .unwrap_or(Rect::new(0.0, 0.0, 1280.0, 720.0))
+    }
+
     /// Область экрана, доступная окнам.
     ///
     /// Из геометрии монитора вычитается место под панель: окна не должны под
     /// неё заезжать.
     pub fn work_area(&self) -> Rect {
-        let geometry = self
-            .space
-            .outputs()
-            .next()
-            .and_then(|output| self.space.output_geometry(output))
-            .map(|g| Rect::new(g.loc.x as f64, g.loc.y as f64, g.size.w as f64, g.size.h as f64))
-            .unwrap_or(Rect::new(0.0, 0.0, 1280.0, 720.0));
+        let geometry = self.screen_area();
 
         if !self.config.panel.enabled {
             return geometry;
@@ -240,25 +246,81 @@ impl HypeState {
         }
     }
 
+    /// Полоса, отведённая панели.
+    ///
+    /// Возвращает `None`, если панель отключена в настройках.
+    pub fn panel_area(&self) -> Option<Rect> {
+        if !self.config.panel.enabled {
+            return None;
+        }
+
+        let screen = self.screen_area();
+        let height = self.config.panel.height as f64;
+        Some(match self.config.panel.position {
+            hype_config::PanelPosition::Top => {
+                Rect::new(screen.origin.x, screen.origin.y, screen.size.w, height)
+            }
+            hype_config::PanelPosition::Bottom => Rect::new(
+                screen.origin.x,
+                screen.origin.y + screen.size.h - height,
+                screen.size.w,
+                height,
+            ),
+        })
+    }
+
     /// Пересчитывает раскладку и отправляет окнам новые размеры.
     pub fn relayout(&mut self) {
         let area = self.work_area();
+        let screen = self.screen_area();
+        let panel_area = self.panel_area();
         let visible: Vec<u64> = self.workspaces.visible_windows().to_vec();
 
-        let inputs: Vec<LayoutWindow> = visible
-            .iter()
-            .filter_map(|id| {
-                let managed = self.windows.get(id)?;
-                Some(LayoutWindow {
+        // Окна среды в общую раскладку не попадают: у панели своя полоса, а
+        // поиск приложений висит по центру поверх всего.
+        let mut special: Vec<(u64, Rect)> = Vec::new();
+        let mut inputs: Vec<LayoutWindow> = Vec::new();
+
+        for id in &visible {
+            let Some(managed) = self.windows.get(id) else {
+                continue;
+            };
+
+            match crate::roles::role_for(&managed.app_id()) {
+                crate::roles::Role::Panel => {
+                    if let Some(panel) = panel_area {
+                        special.push((*id, panel));
+                    }
+                }
+                crate::roles::Role::Launcher => {
+                    let size = managed.anim.target().size;
+                    let width = if size.w > 1.0 { size.w } else { 620.0 };
+                    let height = if size.h > 1.0 { size.h } else { 480.0 };
+                    special.push((
+                        *id,
+                        Rect::new(
+                            screen.origin.x + (screen.size.w - width) / 2.0,
+                            screen.origin.y + (screen.size.h - height) / 3.0,
+                            width,
+                            height,
+                        ),
+                    ));
+                }
+                crate::roles::Role::Normal => inputs.push(LayoutWindow {
                     id: *id,
                     floating: managed.floating,
                     fullscreen: managed.fullscreen,
                     floating_rect: managed.floating_rect,
-                })
-            })
-            .collect();
+                }),
+            }
+        }
 
-        let tiles = layout::arrange(area, &inputs, &self.config.layout);
+        let mut tiles = layout::arrange(area, &inputs, &self.config.layout);
+        tiles.extend(special.into_iter().map(|(id, rect)| crate::layout::Tile {
+            id,
+            rect,
+            fullscreen: false,
+        }));
         let animations = self.config.animations.clone();
         let motion = self.config.theme.motion.scale;
 

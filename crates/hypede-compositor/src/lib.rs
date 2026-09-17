@@ -16,6 +16,7 @@ mod handlers;
 mod input;
 pub mod ipc;
 pub mod layout;
+pub mod roles;
 pub mod state;
 pub mod window_anim;
 pub mod winit;

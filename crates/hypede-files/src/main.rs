@@ -8,6 +8,9 @@ fn main() -> gtk4::glib::ExitCode {
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
+    // Без этого окно представляется средe именем двоичного файла.
+    gtk4::glib::set_prgname(Some(hypede_files::APP_ID));
+
     let app = Application::builder()
         .application_id(hypede_files::APP_ID)
         .build();

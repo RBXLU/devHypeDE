@@ -244,8 +244,18 @@ impl Palette {
             ("текст в меню", self.fg, self.overlay, CONTRAST_TEXT),
             ("второстепенный текст", self.fg_dim, self.bg, CONTRAST_UI),
             ("акцент на фоне окна", self.accent, self.bg, CONTRAST_UI),
-            ("текст на кнопке", self.on_accent, self.accent_bg, CONTRAST_TEXT),
-            ("текст на ошибке", self.on_error, self.error_bg, CONTRAST_TEXT),
+            (
+                "текст на кнопке",
+                self.on_accent,
+                self.accent_bg,
+                CONTRAST_TEXT,
+            ),
+            (
+                "текст на ошибке",
+                self.on_error,
+                self.error_bg,
+                CONTRAST_TEXT,
+            ),
         ];
 
         checks
@@ -382,7 +392,7 @@ mod tests {
             let l = palette.accent_bg.to_oklch().l;
             // Допуск на округление при переходе через sRGB.
             assert!(
-                l >= FILL_L_MIN - 1e-6 && l <= FILL_L_MAX + 1e-6,
+                ((FILL_L_MIN - 1e-6)..=(FILL_L_MAX + 1e-6)).contains(&l),
                 "{hex} дал непригодную заливку со светлотой {l}"
             );
         }
@@ -392,7 +402,10 @@ mod tests {
     fn warning_stays_yellow_and_error_stays_red() {
         let palette = Palette::from_accent(Color::from_hex("#7c3aed").unwrap(), Variant::Dark);
         assert!((palette.warning_bg.to_oklch().h - SEMANTIC_WARNING.0).abs() < 1.0);
-        assert!(palette.warning_bg.to_oklch().l > 0.7, "предупреждение потускнело");
+        assert!(
+            palette.warning_bg.to_oklch().l > 0.7,
+            "предупреждение потускнело"
+        );
         assert!((palette.error_bg.to_oklch().h - SEMANTIC_ERROR.0).abs() < 1.0);
         assert_eq!(palette.on_warning, Color::BLACK);
         assert_eq!(palette.on_error, Color::WHITE);

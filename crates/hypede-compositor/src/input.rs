@@ -136,7 +136,11 @@ impl HypeState {
                 .unwrap_or_else(|| event.amount_v120(axis).unwrap_or(0.0) * 15.0 / 120.0)
         };
 
-        let natural = if self.config.input.natural_scroll { -1.0 } else { 1.0 };
+        let natural = if self.config.input.natural_scroll {
+            -1.0
+        } else {
+            1.0
+        };
         let mut frame = AxisFrame::new(event.time_msec()).source(source);
 
         for axis in [Axis::Horizontal, Axis::Vertical] {
@@ -161,8 +165,14 @@ impl HypeState {
     }
 
     /// Переводит фокус на окно под указателем.
-    fn focus_window_under_pointer(&mut self, position: smithay::utils::Point<f64, smithay::utils::Logical>) {
-        let Some((window, _)) = self.space.element_under(position).map(|(w, l)| (w.clone(), l))
+    fn focus_window_under_pointer(
+        &mut self,
+        position: smithay::utils::Point<f64, smithay::utils::Logical>,
+    ) {
+        let Some((window, _)) = self
+            .space
+            .element_under(position)
+            .map(|(w, l)| (w.clone(), l))
         else {
             return;
         };

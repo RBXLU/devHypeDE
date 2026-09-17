@@ -9,9 +9,7 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use hype_ipc::{
-    write_message, Event, EventKind, Listener, Outgoing, Request, Response,
-};
+use hype_ipc::{write_message, Event, EventKind, Listener, Outgoing, Request, Response};
 use smithay::reexports::calloop::channel::Sender as LoopSender;
 use tracing::{debug, warn};
 
@@ -46,23 +44,21 @@ impl IpcServer {
         let accept_subscribers = Arc::clone(&subscribers);
         std::thread::Builder::new()
             .name("hype-ipc-accept".into())
-            .spawn(move || {
-                loop {
-                    let connection = match listener.accept() {
-                        Ok(connection) => connection,
-                        Err(err) => {
-                            warn!("не удалось принять соединение управления: {err}");
-                            continue;
-                        }
-                    };
+            .spawn(move || loop {
+                let connection = match listener.accept() {
+                    Ok(connection) => connection,
+                    Err(err) => {
+                        warn!("не удалось принять соединение управления: {err}");
+                        continue;
+                    }
+                };
 
-                    let subscribers = Arc::clone(&accept_subscribers);
-                    let requests = requests.clone();
-                    std::thread::Builder::new()
-                        .name("hype-ipc-client".into())
-                        .spawn(move || serve_client(connection, subscribers, requests))
-                        .ok();
-                }
+                let subscribers = Arc::clone(&accept_subscribers);
+                let requests = requests.clone();
+                std::thread::Builder::new()
+                    .name("hype-ipc-client".into())
+                    .spawn(move || serve_client(connection, subscribers, requests))
+                    .ok();
             })
             .expect("не удалось запустить поток управления");
 
@@ -122,8 +118,9 @@ fn serve_client(
                         kinds: events,
                         stream,
                     };
-                    let ok = write_message(&mut subscriber.stream, &Outgoing::Response(Response::Ok))
-                        .is_ok();
+                    let ok =
+                        write_message(&mut subscriber.stream, &Outgoing::Response(Response::Ok))
+                            .is_ok();
                     if ok {
                         if let Ok(mut list) = subscribers.lock() {
                             list.push(subscriber);

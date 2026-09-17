@@ -112,7 +112,10 @@ mod tests {
         let dirs = parse_user_dirs(text, home);
         assert_eq!(dirs.len(), 4);
         assert_eq!(
-            dirs.iter().find(|(k, _)| k == "XDG_DOWNLOAD_DIR").unwrap().1,
+            dirs.iter()
+                .find(|(k, _)| k == "XDG_DOWNLOAD_DIR")
+                .unwrap()
+                .1,
             home.join("Загрузки")
         );
         assert_eq!(
@@ -120,7 +123,10 @@ mod tests {
             home
         );
         assert_eq!(
-            dirs.iter().find(|(k, _)| k == "XDG_PUBLICSHARE_DIR").unwrap().1,
+            dirs.iter()
+                .find(|(k, _)| k == "XDG_PUBLICSHARE_DIR")
+                .unwrap()
+                .1,
             Path::new("/srv/общее")
         );
     }
@@ -142,7 +148,10 @@ mod tests {
     #[test]
     fn the_list_always_has_home_and_the_filesystem_root() {
         let places = standard_places(Path::new("/home/несуществующий"));
-        assert_eq!(places.first().unwrap().path, Path::new("/home/несуществующий"));
+        assert_eq!(
+            places.first().unwrap().path,
+            Path::new("/home/несуществующий")
+        );
         assert_eq!(places.last().unwrap().path, Path::new("/"));
     }
 }

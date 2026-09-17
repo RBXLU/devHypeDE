@@ -8,7 +8,7 @@
 ///
 /// Названия совпадают с общепринятыми (CSS / easings.net), чтобы дизайнерские
 /// референсы можно было переносить без пересчёта.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
 pub enum Easing {
@@ -19,6 +19,8 @@ pub enum Easing {
     EaseInOutQuad,
 
     EaseInCubic,
+    /// Кривая по умолчанию: быстрый старт, мягкое торможение.
+    #[default]
     EaseOutCubic,
     EaseInOutCubic,
 
@@ -42,12 +44,6 @@ pub enum Easing {
 
     /// Произвольная кубическая кривая Безье, как `cubic-bezier()` в CSS.
     CubicBezier(CubicBezier),
-}
-
-impl Default for Easing {
-    fn default() -> Self {
-        Easing::EaseOutCubic
-    }
 }
 
 impl Easing {
@@ -350,7 +346,10 @@ mod tests {
         let peak = (0..100)
             .map(|i| Easing::EaseOutBack.apply(i as f64 / 100.0))
             .fold(f64::MIN, f64::max);
-        assert!(peak > 1.0, "EaseOutBack должна перелетать цель, пик = {peak}");
+        assert!(
+            peak > 1.0,
+            "EaseOutBack должна перелетать цель, пик = {peak}"
+        );
     }
 
     #[test]

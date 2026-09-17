@@ -90,7 +90,12 @@ impl XdgShellHandler for HypeState {
         }
     }
 
-    fn reposition_request(&mut self, surface: PopupSurface, positioner: PositionerState, token: u32) {
+    fn reposition_request(
+        &mut self,
+        surface: PopupSurface,
+        positioner: PositionerState,
+        token: u32,
+    ) {
         surface.with_pending_state(|state| {
             state.geometry = positioner.get_geometry();
             state.positioner = positioner;
@@ -117,7 +122,11 @@ impl XdgShellHandler for HypeState {
     ) {
     }
 
-    fn fullscreen_request(&mut self, surface: ToplevelSurface, _output: Option<wl_output::WlOutput>) {
+    fn fullscreen_request(
+        &mut self,
+        surface: ToplevelSurface,
+        _output: Option<wl_output::WlOutput>,
+    ) {
         self.set_fullscreen(&surface, true);
     }
 
@@ -202,11 +211,11 @@ delegate_xdg_shell!(HypeState);
 pub fn handle_commit(state: &mut HypeState, surface: &WlSurface) {
     state.popups.commit(surface);
 
-    let Some(managed) = state
-        .windows
-        .values()
-        .find(|m| m.window.toplevel().is_some_and(|t| t.wl_surface() == surface))
-    else {
+    let Some(managed) = state.windows.values().find(|m| {
+        m.window
+            .toplevel()
+            .is_some_and(|t| t.wl_surface() == surface)
+    }) else {
         return;
     };
 

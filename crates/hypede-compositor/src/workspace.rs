@@ -199,7 +199,11 @@ impl Workspaces {
             return false;
         };
 
-        let Some(from) = geometry.iter().find(|(id, _)| *id == current).map(|(_, r)| *r) else {
+        let Some(from) = geometry
+            .iter()
+            .find(|(id, _)| *id == current)
+            .map(|(_, r)| *r)
+        else {
             return false;
         };
 
@@ -226,7 +230,11 @@ impl Workspaces {
         let Some(current) = self.focused else {
             return false;
         };
-        let Some(from) = geometry.iter().find(|(id, _)| *id == current).map(|(_, r)| *r) else {
+        let Some(from) = geometry
+            .iter()
+            .find(|(id, _)| *id == current)
+            .map(|(_, r)| *r)
+        else {
             return false;
         };
 

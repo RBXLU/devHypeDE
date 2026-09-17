@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+Name[ru]=Файлы
+Comment=Browse and open files
+Comment[ru]=Просмотр и открытие файлов
+Exec=hype-files %U
+Icon=system-file-manager
+Terminal=false
+Categories=System;FileTools;FileManager;GTK;
+Keywords=files;folder;manager;
+Keywords[ru]=файлы;папки;менеджер;проводник;
+StartupNotify=true
+StartupWMClass=dev.hypede.Files
+MimeType=inode/directory;

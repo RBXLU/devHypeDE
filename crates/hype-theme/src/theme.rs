@@ -227,8 +227,14 @@ impl Theme {
         define("hype_border", p.border);
         define("hype_accent", p.accent);
         define("hype_accent_bg", p.accent_bg);
-        define("hype_panel_bg", p.surface_raised.with_alpha(self.effects.panel_opacity));
-        define("hype_popover_bg", p.overlay.with_alpha(self.effects.popover_opacity));
+        define(
+            "hype_panel_bg",
+            p.surface_raised.with_alpha(self.effects.panel_opacity),
+        );
+        define(
+            "hype_popover_bg",
+            p.overlay.with_alpha(self.effects.popover_opacity),
+        );
 
         css.push_str(&format!(
             "\n* {{\n  font-family: \"{}\", sans-serif;\n  font-size: {}pt;\n}}\n",
@@ -483,13 +489,18 @@ mod tests {
 
     #[test]
     fn light_theme_is_readable_too() {
-        assert!(Theme::default_light().palette().contrast_report().is_empty());
+        assert!(Theme::default_light()
+            .palette()
+            .contrast_report()
+            .is_empty());
     }
 
     #[test]
     fn palette_follows_the_accent() {
-        let mut theme = Theme::default();
-        theme.accent = Color::from_hex("#2ec27e").unwrap();
+        let theme = Theme {
+            accent: Color::from_hex("#2ec27e").unwrap(),
+            ..Theme::default()
+        };
         let hue = theme.palette().accent.to_oklch().h;
         assert!((hue - theme.accent.to_oklch().h).abs() < 1.0);
     }
@@ -546,7 +557,10 @@ mod tests {
             "card_bg_color",
             "hype_panel_bg",
         ] {
-            assert!(css.contains(&format!("@define-color {name} ")), "нет {name}");
+            assert!(
+                css.contains(&format!("@define-color {name} ")),
+                "нет {name}"
+            );
         }
     }
 

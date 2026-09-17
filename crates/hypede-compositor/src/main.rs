@@ -66,6 +66,14 @@ fn run() -> anyhow::Result<()> {
         data.state.socket_name.to_string_lossy()
     );
 
+    // Панель — часть среды, а не пользовательская программа: без неё сеанс
+    // выглядит недоделанным, поэтому она поднимается сама.
+    if data.state.config.panel.enabled {
+        data.state.dispatch(&hype_config::Action::Spawn {
+            command: "hype-shell".into(),
+        });
+    }
+
     for command in &autostart {
         let action = hype_config::Action::Spawn {
             command: command.clone(),

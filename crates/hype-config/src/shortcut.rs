@@ -131,9 +131,38 @@ impl Key {
 /// так опечатка `Retrun` становится ошибкой конфига, а не тихо мёртвой
 /// привязкой.
 const NAMED_KEYS: &[&str] = &[
-    "Return", "Enter", "Space", "Tab", "Escape", "BackSpace", "Delete", "Insert", "Home", "End",
-    "PageUp", "PageDown", "Left", "Right", "Up", "Down", "Print", "Menu", "Pause", "CapsLock",
-    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+    "Return",
+    "Enter",
+    "Space",
+    "Tab",
+    "Escape",
+    "BackSpace",
+    "Delete",
+    "Insert",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+    "Left",
+    "Right",
+    "Up",
+    "Down",
+    "Print",
+    "Menu",
+    "Pause",
+    "CapsLock",
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12",
 ];
 
 /// Сочетание клавиш целиком.
@@ -190,10 +219,7 @@ fn parse_key(token: &str) -> Result<Key, ShortcutParseError> {
         return Ok(Key::Named(token.to_string()));
     }
 
-    if let Some(name) = NAMED_KEYS
-        .iter()
-        .find(|n| n.eq_ignore_ascii_case(token))
-    {
+    if let Some(name) = NAMED_KEYS.iter().find(|n| n.eq_ignore_ascii_case(token)) {
         return Ok(Key::Named((*name).to_string()));
     }
 
@@ -326,7 +352,10 @@ mod tests {
         assert_eq!(Key::from_name("q").unwrap(), Key::Char('q'));
         assert_eq!(Key::from_name("Q").unwrap(), Key::Char('q'));
         assert_eq!(Key::from_name("space").unwrap(), Key::Named("Space".into()));
-        assert_eq!(Key::from_name("Return").unwrap(), Key::Named("Return".into()));
+        assert_eq!(
+            Key::from_name("Return").unwrap(),
+            Key::Named("Return".into())
+        );
         assert_eq!(
             Key::from_name("XF86AudioMute").unwrap(),
             Key::Named("XF86AudioMute".into())

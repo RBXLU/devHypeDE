@@ -225,7 +225,9 @@ pub struct Binding {
 impl Binding {
     pub fn new(keys: &str, action: Action) -> Self {
         Self {
-            keys: keys.parse().expect("привязка по умолчанию должна разбираться"),
+            keys: keys
+                .parse()
+                .expect("привязка по умолчанию должна разбираться"),
             action,
         }
     }
@@ -301,7 +303,8 @@ impl Config {
                     ));
                 }
             }
-            if let Action::Workspace { index } | Action::MoveToWorkspace { index } = binding.action {
+            if let Action::Workspace { index } | Action::MoveToWorkspace { index } = binding.action
+            {
                 if index == 0 || index > self.layout.workspaces {
                     warnings.push(format!(
                         "привязка {}: рабочего стола {index} не существует (их {})",
@@ -523,11 +526,13 @@ mod tests {
 
     #[test]
     fn validation_spots_duplicate_bindings() {
-        let mut config = Config::default();
-        config.keybinds = vec![
-            Binding::new("Super+Q", Action::CloseWindow),
-            Binding::new("Super+Q", Action::Quit),
-        ];
+        let config = Config {
+            keybinds: vec![
+                Binding::new("Super+Q", Action::CloseWindow),
+                Binding::new("Super+Q", Action::Quit),
+            ],
+            ..Config::default()
+        };
         let warnings = config.validate();
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("Super+Q"));
@@ -546,13 +551,15 @@ mod tests {
 
     #[test]
     fn validation_spots_a_broken_spawn_command() {
-        let mut config = Config::default();
-        config.keybinds = vec![Binding::new(
-            "Super+T",
-            Action::Spawn {
-                command: "foot -e 'htop".into(),
-            },
-        )];
+        let config = Config {
+            keybinds: vec![Binding::new(
+                "Super+T",
+                Action::Spawn {
+                    command: "foot -e 'htop".into(),
+                },
+            )],
+            ..Config::default()
+        };
         assert!(config.validate()[0].contains("разобрать"));
     }
 

@@ -92,7 +92,9 @@ pub fn parse_desktop_entry(text: &str, path: &Path, locale: &str) -> Option<Desk
 }
 
 fn is_true(value: Option<&String>) -> bool {
-    value.map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false)
+    value
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
 }
 
 /// Убирает из команды подстановки спецификации (`%U`, `%f`, `%i` и прочие).
@@ -250,10 +252,10 @@ mod tests {
 
     #[test]
     fn hidden_entries_are_skipped() {
-        assert!(entry(
-            "[Desktop Entry]\nType=Application\nName=Скрытое\nExec=x\nNoDisplay=true\n"
-        )
-        .is_none());
+        assert!(
+            entry("[Desktop Entry]\nType=Application\nName=Скрытое\nExec=x\nNoDisplay=true\n")
+                .is_none()
+        );
         assert!(
             entry("[Desktop Entry]\nType=Application\nName=Скрытое\nExec=x\nHidden=TRUE\n")
                 .is_none()
@@ -286,7 +288,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(app.name, "Браузер");
-        assert_eq!(app.exec, "browser", "команда действия не должна подменять основную");
+        assert_eq!(
+            app.exec, "browser",
+            "команда действия не должна подменять основную"
+        );
     }
 
     #[test]
@@ -294,7 +299,10 @@ mod tests {
         assert_eq!(clean_exec("app %U %i %c"), "app");
         assert_eq!(clean_exec("app --opt %f file"), "app --opt file");
         assert_eq!(clean_exec("app 100%%"), "app 100%");
-        assert_eq!(clean_exec("app  --много   пробелов"), "app --много пробелов");
+        assert_eq!(
+            clean_exec("app  --много   пробелов"),
+            "app --много пробелов"
+        );
     }
 
     #[test]
@@ -326,7 +334,10 @@ mod tests {
         ];
 
         let found = search(&apps, "настройки");
-        assert_eq!(found[0].name, "Настройки", "точное совпадение должно быть первым");
+        assert_eq!(
+            found[0].name, "Настройки",
+            "точное совпадение должно быть первым"
+        );
         assert_eq!(found[1].name, "Настройки системы");
         assert_eq!(found[2].name, "Диспетчер файлов");
     }

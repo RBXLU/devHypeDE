@@ -133,10 +133,14 @@ fn arrange_master_stack(area: Rect, count: usize, config: &LayoutConfig) -> Vec<
 
     for i in 0..stack_count {
         let start = area.origin.y + (available * i as f64 / stack_count as f64) + gap * i as f64;
-        let end = area.origin.y
-            + (available * (i + 1) as f64 / stack_count as f64)
-            + gap * i as f64;
-        rects.push(Rect::new(stack_x, start, stack_width, (end - start).max(MIN_TILE)));
+        let end =
+            area.origin.y + (available * (i + 1) as f64 / stack_count as f64) + gap * i as f64;
+        rects.push(Rect::new(
+            stack_x,
+            start,
+            stack_width,
+            (end - start).max(MIN_TILE),
+        ));
     }
 
     rects
@@ -162,14 +166,14 @@ fn clamp_gap(gap: f64, available: f64, slots: f64) -> f64 {
 fn clamp_into(rect: Rect, area: Rect) -> Rect {
     let w = rect.size.w.min(area.size.w);
     let h = rect.size.h.min(area.size.h);
-    let x = rect
-        .origin
-        .x
-        .clamp(area.origin.x, (area.origin.x + area.size.w - w).max(area.origin.x));
-    let y = rect
-        .origin
-        .y
-        .clamp(area.origin.y, (area.origin.y + area.size.h - h).max(area.origin.y));
+    let x = rect.origin.x.clamp(
+        area.origin.x,
+        (area.origin.x + area.size.w - w).max(area.origin.x),
+    );
+    let y = rect.origin.y.clamp(
+        area.origin.y,
+        (area.origin.y + area.size.h - h).max(area.origin.y),
+    );
     Rect::new(x, y, w, h)
 }
 
@@ -317,7 +321,10 @@ mod tests {
         let tiles = arrange(SCREEN, &tiled(4), &config());
         let heights: Vec<f64> = tiles[1..].iter().map(|t| t.rect.size.h).collect();
         for h in &heights {
-            assert!((h - heights[0]).abs() < 1.0, "куски разной высоты: {heights:?}");
+            assert!(
+                (h - heights[0]).abs() < 1.0,
+                "куски разной высоты: {heights:?}"
+            );
         }
     }
 
@@ -353,7 +360,10 @@ mod tests {
         let full: Vec<&Tile> = tiles.iter().filter(|t| t.fullscreen).collect();
         assert_eq!(full.len(), 1);
         assert_eq!(full[0].id, 1);
-        assert_eq!(full[0].rect, SCREEN, "полный экран не должен иметь отступов");
+        assert_eq!(
+            full[0].rect, SCREEN,
+            "полный экран не должен иметь отступов"
+        );
     }
 
     #[test]
@@ -423,7 +433,9 @@ mod tests {
             );
         }
         assert!(
-            tiles.iter().all(|t| t.rect.origin.x >= 0.0 && t.rect.origin.y >= 0.0),
+            tiles
+                .iter()
+                .all(|t| t.rect.origin.x >= 0.0 && t.rect.origin.y >= 0.0),
             "окно уехало за край"
         );
     }
@@ -447,7 +459,10 @@ mod tests {
             (3, Rect::new(-200.0, 0.0, 100.0, 100.0)),
         ];
 
-        assert_eq!(focus_target(current, &candidates, Direction::Right), Some(1));
+        assert_eq!(
+            focus_target(current, &candidates, Direction::Right),
+            Some(1)
+        );
         assert_eq!(focus_target(current, &candidates, Direction::Down), Some(2));
         assert_eq!(focus_target(current, &candidates, Direction::Left), Some(3));
         assert_eq!(focus_target(current, &candidates, Direction::Up), None);
@@ -460,7 +475,10 @@ mod tests {
             (1, Rect::new(600.0, 0.0, 100.0, 100.0)),
             (2, Rect::new(200.0, 0.0, 100.0, 100.0)),
         ];
-        assert_eq!(focus_target(current, &candidates, Direction::Right), Some(2));
+        assert_eq!(
+            focus_target(current, &candidates, Direction::Right),
+            Some(2)
+        );
     }
 
     #[test]
@@ -472,7 +490,10 @@ mod tests {
             // Рядом, но чуть выше.
             (2, Rect::new(200.0, -60.0, 100.0, 100.0)),
         ];
-        assert_eq!(focus_target(current, &candidates, Direction::Right), Some(2));
+        assert_eq!(
+            focus_target(current, &candidates, Direction::Right),
+            Some(2)
+        );
     }
 
     #[test]

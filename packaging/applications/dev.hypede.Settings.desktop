@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=HypeDE Settings
+Name[ru]=Параметры HypeDE
+Comment=Appearance, animations, windows and input
+Comment[ru]=Оформление, анимации, окна и ввод
+Exec=hype-settings
+Icon=preferences-desktop
+Terminal=false
+Categories=Settings;DesktopSettings;GTK;
+Keywords[ru]=настройки;параметры;тема;оформление;анимации;
+StartupNotify=true
+StartupWMClass=dev.hypede.Settings

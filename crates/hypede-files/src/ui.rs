@@ -293,7 +293,9 @@ fn refresh(state: &Rc<RefCell<AppState>>, widgets: &Rc<Widgets>, path: &Path) {
 
     let state = state.borrow();
     widgets.back.set_sensitive(state.history.can_go_back());
-    widgets.forward.set_sensitive(state.history.can_go_forward());
+    widgets
+        .forward
+        .set_sensitive(state.history.can_go_forward());
     widgets.up.set_sensitive(path.parent().is_some());
     widgets.window.set_title(Some(&window_title(path)));
 }

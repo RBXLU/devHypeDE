@@ -265,7 +265,9 @@ fn take_number(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> u128 {
             break;
         }
         // Абсурдно длинные цифры в имени не должны переполнять счётчик.
-        value = value.saturating_mul(10).saturating_add(c as u128 - '0' as u128);
+        value = value
+            .saturating_mul(10)
+            .saturating_add(c as u128 - '0' as u128);
         chars.next();
     }
     value
@@ -305,8 +307,8 @@ mod tests {
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir()
-                .join(format!("hype-files-test-{name}-{}", std::process::id()));
+            let path =
+                std::env::temp_dir().join(format!("hype-files-test-{name}-{}", std::process::id()));
             let _ = fs::remove_dir_all(&path);
             fs::create_dir_all(&path).unwrap();
             Self(path)

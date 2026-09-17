@@ -28,6 +28,11 @@ use crate::layout::{self, LayoutWindow};
 use crate::window_anim::WindowAnimation;
 use crate::workspace::Workspaces;
 
+/// Размер окна поиска приложений, пока клиент не сообщил свой.
+const LAUNCHER_WIDTH: f64 = 620.0;
+/// Высота окна поиска приложений по умолчанию.
+const LAUNCHER_HEIGHT: f64 = 480.0;
+
 /// Данные, которые цикл событий передаёт обработчикам.
 pub struct LoopData {
     pub state: HypeState,
@@ -212,7 +217,14 @@ impl HypeState {
             .outputs()
             .next()
             .and_then(|output| self.space.output_geometry(output))
-            .map(|g| Rect::new(g.loc.x as f64, g.loc.y as f64, g.size.w as f64, g.size.h as f64))
+            .map(|g| {
+                Rect::new(
+                    g.loc.x as f64,
+                    g.loc.y as f64,
+                    g.size.w as f64,
+                    g.size.h as f64,
+                )
+            })
             // До появления монитора нужно на что-то опираться: раскладка
             // считается ещё до того, как бэкенд сообщит размер.
             .unwrap_or(Rect::new(0.0, 0.0, 1280.0, 720.0))
@@ -293,13 +305,28 @@ impl HypeState {
                     }
                 }
                 crate::roles::Role::Launcher => {
-                    let size = managed.anim.target().size;
-                    let width = if size.w > 1.0 { size.w } else { 620.0 };
-                    let height = if size.h > 1.0 { size.h } else { 480.0 };
+                    // Размер берётся тот, который запросил сам клиент. Брать
+                    // его из текущей анимации нельзя: она уже содержит
+                    // результат прошлой раскладки, и окно разрасталось бы с
+                    // каждым пересчётом.
+                    let requested = managed.window.geometry().size;
+                    let width = if requested.w > 1 {
+                        requested.w as f64
+                    } else {
+                        LAUNCHER_WIDTH
+                    };
+                    let height = if requested.h > 1 {
+                        requested.h as f64
+                    } else {
+                        LAUNCHER_HEIGHT
+                    };
+
                     special.push((
                         *id,
                         Rect::new(
                             screen.origin.x + (screen.size.w - width) / 2.0,
+                            // Чуть выше центра: так окно поиска не перекрывает
+                            // то, что пользователь ищет глазами ниже.
                             screen.origin.y + (screen.size.h - height) / 3.0,
                             width,
                             height,
@@ -385,7 +412,9 @@ impl HypeState {
     /// Продвигает все анимации. Возвращает `true`, если нужна перерисовка.
     pub fn advance_animations(&mut self) -> bool {
         let now = Instant::now();
-        let dt = now.duration_since(self.last_frame).min(Duration::from_millis(100));
+        let dt = now
+            .duration_since(self.last_frame)
+            .min(Duration::from_millis(100));
         self.last_frame = now;
 
         let mut moving = false;
@@ -421,11 +450,13 @@ impl HypeState {
         &self,
         position: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
-        self.space.element_under(position).and_then(|(window, location)| {
-            window
-                .surface_under(position - location.to_f64(), WindowSurfaceType::ALL)
-                .map(|(surface, point)| (surface, (point + location).to_f64()))
-        })
+        self.space
+            .element_under(position)
+            .and_then(|(window, location)| {
+                window
+                    .surface_under(position - location.to_f64(), WindowSurfaceType::ALL)
+                    .map(|(surface, point)| (surface, (point + location).to_f64()))
+            })
     }
 
     /// Находит окно по идентификатору поверхности.

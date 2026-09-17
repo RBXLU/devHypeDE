@@ -53,7 +53,9 @@ pub enum ScreenshotTarget {
 pub enum Action {
     /// Запустить программу. Команда разбирается по пробелам, без оболочки:
     /// так в конфиге не заводится случайный `rm -rf` через подстановку.
-    Spawn { command: String },
+    Spawn {
+        command: String,
+    },
 
     CloseWindow,
     ToggleFullscreen,
@@ -61,16 +63,27 @@ pub enum Action {
     ToggleFloating,
 
     /// Перевести фокус на соседнее окно.
-    FocusDirection { direction: Direction },
+    FocusDirection {
+        direction: Direction,
+    },
     /// Переставить текущее окно.
-    MoveWindow { direction: Direction },
+    MoveWindow {
+        direction: Direction,
+    },
     /// Изменить размер текущего окна на `delta` логических пикселей.
-    ResizeWindow { direction: Direction, delta: i32 },
+    ResizeWindow {
+        direction: Direction,
+        delta: i32,
+    },
 
     /// Перейти на рабочий стол по номеру, начиная с 1.
-    Workspace { index: u8 },
+    Workspace {
+        index: u8,
+    },
     /// Перенести окно на рабочий стол и перейти туда.
-    MoveToWorkspace { index: u8 },
+    MoveToWorkspace {
+        index: u8,
+    },
     NextWorkspace,
     PrevWorkspace,
 
@@ -79,7 +92,9 @@ pub enum Action {
     /// Показать поиск по приложениям.
     ToggleLauncher,
 
-    Screenshot { target: ScreenshotTarget },
+    Screenshot {
+        target: ScreenshotTarget,
+    },
 
     /// Перечитать конфигурацию с диска.
     ReloadConfig,
@@ -244,10 +259,7 @@ mod tests {
         let action = Action::Spawn {
             command: "foot -e htop".into(),
         };
-        assert_eq!(
-            action.command_line().unwrap(),
-            vec!["foot", "-e", "htop"]
-        );
+        assert_eq!(action.command_line().unwrap(), vec!["foot", "-e", "htop"]);
     }
 
     #[test]
@@ -304,8 +316,6 @@ mod tests {
     #[test]
     fn every_action_describes_itself() {
         assert_eq!(Action::CloseWindow.description(), "Закрыть окно");
-        assert!(Action::Workspace { index: 2 }
-            .description()
-            .contains('2'));
+        assert!(Action::Workspace { index: 2 }.description().contains('2'));
     }
 }

@@ -78,7 +78,9 @@ pub fn parse(args: &[String]) -> Result<Command, ParseError> {
         "windows" => Ok(Command::Request(Request::ListWindows)),
         "workspaces" => Ok(Command::Request(Request::ListWorkspaces)),
         "config" => Ok(Command::Request(Request::GetConfig)),
-        "dispatch" => parse_action(&args[1..]).map(|action| Command::Request(Request::Dispatch { action })),
+        "dispatch" => {
+            parse_action(&args[1..]).map(|action| Command::Request(Request::Dispatch { action }))
+        }
         "subscribe" => parse_events(&args[1..]).map(Command::Subscribe),
         other => Err(ParseError(format!(
             "неизвестная команда «{other}». Список: hypectl help"
@@ -161,7 +163,9 @@ fn parse_direction(value: Option<&String>) -> Result<Direction, ParseError> {
         Some(other) => Err(ParseError(format!(
             "«{other}» — ожидалось left, right, up или down"
         ))),
-        None => Err(ParseError("нужно направление: left, right, up или down".into())),
+        None => Err(ParseError(
+            "нужно направление: left, right, up или down".into(),
+        )),
     }
 }
 
@@ -290,9 +294,18 @@ mod tests {
 
     #[test]
     fn mistakes_are_explained_rather_than_swallowed() {
-        assert!(parse(&args(&["чепуха"])).unwrap_err().0.contains("неизвестная команда"));
-        assert!(parse(&args(&["dispatch"])).unwrap_err().0.contains("нужно указать"));
-        assert!(parse(&args(&["dispatch", "workspace"])).unwrap_err().0.contains("номер"));
+        assert!(parse(&args(&["чепуха"]))
+            .unwrap_err()
+            .0
+            .contains("неизвестная команда"));
+        assert!(parse(&args(&["dispatch"]))
+            .unwrap_err()
+            .0
+            .contains("нужно указать"));
+        assert!(parse(&args(&["dispatch", "workspace"]))
+            .unwrap_err()
+            .0
+            .contains("номер"));
         assert!(parse(&args(&["dispatch", "workspace", "много"]))
             .unwrap_err()
             .0
@@ -305,12 +318,23 @@ mod tests {
             .unwrap_err()
             .0
             .contains("неизвестный вид"));
-        assert!(parse(&args(&["dispatch", "spawn"])).unwrap_err().0.contains("нужна команда"));
+        assert!(parse(&args(&["dispatch", "spawn"]))
+            .unwrap_err()
+            .0
+            .contains("нужна команда"));
     }
 
     #[test]
     fn the_help_text_lists_every_command_parse_accepts() {
-        for command in ["ping", "version", "state", "windows", "workspaces", "dispatch", "subscribe"] {
+        for command in [
+            "ping",
+            "version",
+            "state",
+            "windows",
+            "workspaces",
+            "dispatch",
+            "subscribe",
+        ] {
             assert!(HELP.contains(command), "в справке нет команды {command}");
         }
     }

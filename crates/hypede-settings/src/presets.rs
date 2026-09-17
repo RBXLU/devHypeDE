@@ -127,8 +127,14 @@ mod tests {
 
     #[test]
     fn a_colour_without_a_hash_is_accepted() {
-        assert_eq!(parse_accent("7c3aed").unwrap(), Color::from_hex("#7c3aed").unwrap());
-        assert_eq!(parse_accent("  #7c3aed  ").unwrap(), Color::from_hex("#7c3aed").unwrap());
+        assert_eq!(
+            parse_accent("7c3aed").unwrap(),
+            Color::from_hex("#7c3aed").unwrap()
+        );
+        assert_eq!(
+            parse_accent("  #7c3aed  ").unwrap(),
+            Color::from_hex("#7c3aed").unwrap()
+        );
     }
 
     #[test]

@@ -198,7 +198,10 @@ mod tests {
         for _ in 0..200 {
             anim.advance(FRAME);
             let alpha = anim.alpha();
-            assert!((0.0..=1.0).contains(&alpha), "альфа вышла за пределы: {alpha}");
+            assert!(
+                (0.0..=1.0).contains(&alpha),
+                "альфа вышла за пределы: {alpha}"
+            );
         }
     }
 
@@ -207,7 +210,10 @@ mod tests {
         let mut anim = WindowAnimation::settled(TARGET);
         assert!(anim.is_idle());
         assert_eq!(anim.rect(), TARGET);
-        assert!(!anim.advance(FRAME), "неподвижное окно не требует перерисовки");
+        assert!(
+            !anim.advance(FRAME),
+            "неподвижное окно не требует перерисовки"
+        );
     }
 
     #[test]
@@ -281,7 +287,10 @@ mod tests {
     #[test]
     fn disabling_motion_makes_windows_appear_instantly() {
         let mut anim = WindowAnimation::opening(TARGET, &config(), 0.0);
-        assert!(anim.is_idle(), "с выключенными анимациями окно уже на месте");
+        assert!(
+            anim.is_idle(),
+            "с выключенными анимациями окно уже на месте"
+        );
         assert_eq!(anim.rect(), TARGET);
         assert_eq!(anim.alpha(), 1.0);
 
@@ -310,6 +319,9 @@ mod tests {
         assert!(anim.advance(FRAME));
 
         settle(&mut anim);
-        assert!(!anim.advance(FRAME), "доехавшее окно продолжает просить кадры");
+        assert!(
+            !anim.advance(FRAME),
+            "доехавшее окно продолжает просить кадры"
+        );
     }
 }

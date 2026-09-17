@@ -158,7 +158,12 @@ mod tests {
 
     #[test]
     fn spring_converges_to_the_target() {
-        for spring in [Spring::SMOOTH, Spring::SNAPPY, Spring::BOUNCY, Spring::GENTLE] {
+        for spring in [
+            Spring::SMOOTH,
+            Spring::SNAPPY,
+            Spring::BOUNCY,
+            Spring::GENTLE,
+        ] {
             let v = spring.value_at(0.0, 100.0, 0.0, 5.0);
             assert!((v - 100.0).abs() < 0.01, "{spring:?} не сошлась: {v}");
         }
@@ -193,7 +198,10 @@ mod tests {
         let mut prev = 0.0;
         for i in 0..3000 {
             let v = spring.value_at(0.0, 100.0, 0.0, i as f64 / 1000.0);
-            assert!(v >= prev - 1e-9, "передемпфированная пружина качнулась назад");
+            assert!(
+                v >= prev - 1e-9,
+                "передемпфированная пружина качнулась назад"
+            );
             prev = v;
         }
         assert!((prev - 100.0).abs() < 0.5);
@@ -217,7 +225,10 @@ mod tests {
     fn stiffer_springs_finish_sooner() {
         let soft = Spring::GENTLE.duration(0.0, 100.0, 0.0);
         let stiff = Spring::SNAPPY.duration(0.0, 100.0, 0.0);
-        assert!(stiff < soft, "жёсткая {stiff} должна быть быстрее мягкой {soft}");
+        assert!(
+            stiff < soft,
+            "жёсткая {stiff} должна быть быстрее мягкой {soft}"
+        );
         assert!(stiff > 0.0 && soft < 20.0);
     }
 

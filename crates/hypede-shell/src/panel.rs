@@ -114,7 +114,7 @@ fn start_clock(widgets: &Rc<PanelWidgets>) {
     let update = move || {
         // Время берётся у GLib: она знает часовой пояс системы и переход на
         // летнее время, чего не даёт голый SystemTime.
-        if let Some(now) = glib::DateTime::now_local().ok() {
+        if let Ok(now) = glib::DateTime::now_local() {
             let text = now
                 .format("%a, %e %B · %H:%M")
                 .map(|s| s.to_string())

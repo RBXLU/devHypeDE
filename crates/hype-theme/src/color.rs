@@ -77,7 +77,11 @@ impl Color {
         let short = |d: u8| (d * 16 + d) as f64 / 255.0;
 
         match digits.len() {
-            3 => Ok(Color::rgb(short(digits[0]), short(digits[1]), short(digits[2]))),
+            3 => Ok(Color::rgb(
+                short(digits[0]),
+                short(digits[1]),
+                short(digits[2]),
+            )),
             4 => Ok(Color::rgba(
                 short(digits[0]),
                 short(digits[1]),
@@ -432,8 +436,14 @@ mod tests {
 
     #[test]
     fn best_foreground_picks_the_readable_option() {
-        assert_eq!(Color::from_hex("#111111").unwrap().best_foreground(), Color::WHITE);
-        assert_eq!(Color::from_hex("#eeeeee").unwrap().best_foreground(), Color::BLACK);
+        assert_eq!(
+            Color::from_hex("#111111").unwrap().best_foreground(),
+            Color::WHITE
+        );
+        assert_eq!(
+            Color::from_hex("#eeeeee").unwrap().best_foreground(),
+            Color::BLACK
+        );
     }
 
     #[test]
@@ -465,12 +475,18 @@ mod tests {
     #[test]
     fn with_chroma_zero_produces_a_grey() {
         let grey = Color::from_hex("#7c3aed").unwrap().with_chroma(0.0);
-        assert!((grey.r - grey.g).abs() < 0.01 && (grey.g - grey.b).abs() < 0.01, "{grey}");
+        assert!(
+            (grey.r - grey.g).abs() < 0.01 && (grey.g - grey.b).abs() < 0.01,
+            "{grey}"
+        );
     }
 
     #[test]
     fn rgb8_matches_the_same_hex_colour() {
-        assert_eq!(Color::from_rgb8(0x7c, 0x3a, 0xed), Color::from_hex("#7c3aed").unwrap());
+        assert_eq!(
+            Color::from_rgb8(0x7c, 0x3a, 0xed),
+            Color::from_hex("#7c3aed").unwrap()
+        );
     }
 
     #[test]

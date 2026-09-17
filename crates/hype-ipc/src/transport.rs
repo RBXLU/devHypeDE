@@ -37,7 +37,9 @@ pub fn write_message<W: Write, T: Serialize>(writer: &mut W, value: &T) -> Resul
 }
 
 /// Читает одно сообщение. `Ok(None)` означает, что поток закончился.
-pub fn read_message<R: BufRead, T: DeserializeOwned>(reader: &mut R) -> Result<Option<T>, IpcError> {
+pub fn read_message<R: BufRead, T: DeserializeOwned>(
+    reader: &mut R,
+) -> Result<Option<T>, IpcError> {
     let mut line = String::new();
     loop {
         line.clear();

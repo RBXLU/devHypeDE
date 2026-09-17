@@ -88,7 +88,10 @@ pub fn breadcrumbs(path: &Path, home: Option<&Path>) -> Vec<(String, PathBuf)> {
             let mut current = home.to_path_buf();
             for part in relative.components() {
                 current = current.join(part);
-                crumbs.push((part.as_os_str().to_string_lossy().into_owned(), current.clone()));
+                crumbs.push((
+                    part.as_os_str().to_string_lossy().into_owned(),
+                    current.clone(),
+                ));
             }
             return crumbs;
         }
@@ -98,7 +101,10 @@ pub fn breadcrumbs(path: &Path, home: Option<&Path>) -> Vec<(String, PathBuf)> {
     let mut current = PathBuf::from("/");
     for part in path.components().skip(1) {
         current = current.join(part);
-        crumbs.push((part.as_os_str().to_string_lossy().into_owned(), current.clone()));
+        crumbs.push((
+            part.as_os_str().to_string_lossy().into_owned(),
+            current.clone(),
+        ));
     }
     crumbs
 }
@@ -138,7 +144,10 @@ mod tests {
         history.push("/a/другой");
 
         assert_eq!(history.current(), Path::new("/a/другой"));
-        assert!(!history.can_go_forward(), "старая ветка должна была отпасть");
+        assert!(
+            !history.can_go_forward(),
+            "старая ветка должна была отпасть"
+        );
         assert_eq!(history.back().unwrap(), Path::new("/a"));
     }
 

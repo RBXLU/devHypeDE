@@ -160,7 +160,10 @@ fn page_appearance(state: &Shared, preview: &DrawingArea) -> ScrolledWindow {
             preset.hex
         );
         provider.load_from_data(&css);
-        button.add_css_class(&format!("hype-swatch-{}", preset.hex.trim_start_matches('#')));
+        button.add_css_class(&format!(
+            "hype-swatch-{}",
+            preset.hex.trim_start_matches('#')
+        ));
         button
             .style_context()
             .add_provider(&provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -273,11 +276,20 @@ fn page_motion(state: &Shared) -> ScrolledWindow {
          если от анимаций устают глаза.",
     ));
 
-    let label = Label::new(Some(&motion_label(state.borrow().config.theme.motion.scale)));
+    let label = Label::new(Some(&motion_label(
+        state.borrow().config.theme.motion.scale,
+    )));
     label.set_halign(Align::Start);
     label.add_css_class("hype-accent");
 
-    let adjustment = Adjustment::new(state.borrow().config.theme.motion.scale, 0.0, 3.0, 0.1, 0.5, 0.0);
+    let adjustment = Adjustment::new(
+        state.borrow().config.theme.motion.scale,
+        0.0,
+        3.0,
+        0.1,
+        0.5,
+        0.0,
+    );
     let scale = Scale::new(Orientation::Horizontal, Some(&adjustment));
     scale.set_draw_value(false);
     scale.set_hexpand(true);
@@ -415,11 +427,13 @@ fn page_windows(state: &Shared) -> ScrolledWindow {
         |config, on| config.panel.enabled = on,
     ));
     let positions = DropDown::from_strings(&["Сверху", "Снизу"]);
-    positions.set_selected(if state.borrow().config.panel.position == PanelPosition::Top {
-        0
-    } else {
-        1
-    });
+    positions.set_selected(
+        if state.borrow().config.panel.position == PanelPosition::Top {
+            0
+        } else {
+            1
+        },
+    );
     positions.connect_selected_notify({
         let state = Rc::clone(state);
         move |dropdown| {
@@ -577,12 +591,7 @@ fn labelled(title: &str, widget: &impl IsA<gtk4::Widget>) -> GtkBox {
     row
 }
 
-fn switch_row(
-    state: &Shared,
-    title: &str,
-    initial: bool,
-    apply: fn(&mut Config, bool),
-) -> GtkBox {
+fn switch_row(state: &Shared, title: &str, initial: bool, apply: fn(&mut Config, bool)) -> GtkBox {
     let switch = Switch::new();
     switch.set_active(initial);
     switch.set_valign(Align::Center);
@@ -704,7 +713,10 @@ fn apply_settings(state: &Shared) {
     } else {
         format!(" · замечаний: {}", warnings.len())
     };
-    state.borrow().status.set_text(&format!("{message}{suffix}"));
+    state
+        .borrow()
+        .status
+        .set_text(&format!("{message}{suffix}"));
 }
 
 /// Подключает CSS темы, выгруженный композитором.

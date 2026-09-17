@@ -1,0 +1,74 @@
+# Сборка HypeDE для Arch и CachyOS.
+#
+# Установка из каталога с исходниками:
+#   makepkg -si
+#
+# После установки HypeDE появится в списке сеансов дисплейного менеджера
+# (SDDM, GDM, greetd — любого, читающего /usr/share/wayland-sessions).
+
+pkgname=hypede-git
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="HypeDE — среда рабочего стола на Wayland: композитор, панель, файловый менеджер и настройки"
+arch=('x86_64' 'aarch64')
+url="https://github.com/RBXLU/devHypeDE"
+license=('GPL-3.0-or-later')
+
+depends=(
+  'wayland'
+  'libxkbcommon'
+  'libinput'
+  'libdrm'
+  'mesa'
+  'seatd'
+  'gtk4'
+  'pango'
+  'cairo'
+  'gdk-pixbuf2'
+  'glib2'
+  'hicolor-icon-theme'
+)
+makedepends=('rust' 'cargo' 'pkgconf')
+optdepends=(
+  'foot: терминал, назначенный на Super+Return по умолчанию'
+  'inter-font: шрифт интерфейса по умолчанию'
+  'ttf-jetbrains-mono: моноширинный шрифт по умолчанию'
+  'xdg-desktop-portal-gtk: диалоги открытия файлов для приложений'
+)
+provides=('hypede')
+conflicts=('hypede')
+
+build() {
+  cd "$startdir"
+  cargo build --release --locked --workspace
+}
+
+check() {
+  cd "$startdir"
+  cargo test --release --locked --workspace
+}
+
+package() {
+  cd "$startdir"
+
+  for binary in hypede-comp hype-shell hype-files hype-settings hypectl; do
+    install -Dm755 "target/release/$binary" "$pkgdir/usr/bin/$binary"
+  done
+
+  install -Dm644 packaging/hypede.desktop \
+    "$pkgdir/usr/share/wayland-sessions/hypede.desktop"
+
+  for entry in packaging/applications/*.desktop; do
+    install -Dm644 "$entry" "$pkgdir/usr/share/applications/$(basename "$entry")"
+  done
+
+  install -Dm644 branding/hypede-logo.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/hypede.svg"
+  install -Dm644 branding/hypede-symbolic.svg \
+    "$pkgdir/usr/share/icons/hicolor/symbolic/apps/hypede-symbolic.svg"
+
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  for doc in docs/*.md; do
+    install -Dm644 "$doc" "$pkgdir/usr/share/doc/$pkgname/$(basename "$doc")"
+  done
+}

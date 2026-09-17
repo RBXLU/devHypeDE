@@ -40,13 +40,23 @@ pub enum Response {
     /// Команда принята, возвращать нечего.
     Ok,
     Pong,
-    Version { version: String },
+    Version {
+        version: String,
+    },
     State(Box<State>),
-    Windows { windows: Vec<WindowInfo> },
-    Workspaces { workspaces: Vec<WorkspaceInfo> },
-    Config { config: Box<Config> },
+    Windows {
+        windows: Vec<WindowInfo>,
+    },
+    Workspaces {
+        workspaces: Vec<WorkspaceInfo>,
+    },
+    Config {
+        config: Box<Config>,
+    },
     /// Запрос не выполнен. Текст предназначен человеку.
-    Error { message: String },
+    Error {
+        message: String,
+    },
 }
 
 impl Response {
@@ -78,14 +88,28 @@ pub enum EventKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "kebab-case")]
 pub enum Event {
-    WindowOpened { window: WindowInfo },
-    WindowClosed { id: u64 },
-    WindowChanged { window: WindowInfo },
+    WindowOpened {
+        window: WindowInfo,
+    },
+    WindowClosed {
+        id: u64,
+    },
+    WindowChanged {
+        window: WindowInfo,
+    },
     /// Фокус перешёл к окну; `None` означает, что фокуса нет ни у кого.
-    FocusChanged { id: Option<u64> },
-    WorkspaceChanged { index: u8 },
-    OutputAdded { output: OutputInfo },
-    OutputRemoved { name: String },
+    FocusChanged {
+        id: Option<u64>,
+    },
+    WorkspaceChanged {
+        index: u8,
+    },
+    OutputAdded {
+        output: OutputInfo,
+    },
+    OutputRemoved {
+        name: String,
+    },
     ThemeChanged,
 }
 
@@ -93,9 +117,9 @@ impl Event {
     /// К какому виду относится событие — по нему работает подписка.
     pub fn kind(&self) -> EventKind {
         match self {
-            Event::WindowOpened { .. } | Event::WindowClosed { .. } | Event::WindowChanged { .. } => {
-                EventKind::Window
-            }
+            Event::WindowOpened { .. }
+            | Event::WindowClosed { .. }
+            | Event::WindowChanged { .. } => EventKind::Window,
             Event::FocusChanged { .. } => EventKind::Focus,
             Event::WorkspaceChanged { .. } => EventKind::Workspace,
             Event::OutputAdded { .. } | Event::OutputRemoved { .. } => EventKind::Output,
@@ -247,7 +271,10 @@ mod tests {
             serde_json::from_str::<Outgoing>(&response_text).unwrap(),
             response
         );
-        assert_eq!(serde_json::from_str::<Outgoing>(&event_text).unwrap(), event);
+        assert_eq!(
+            serde_json::from_str::<Outgoing>(&event_text).unwrap(),
+            event
+        );
     }
 
     #[test]

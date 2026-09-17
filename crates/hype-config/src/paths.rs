@@ -136,11 +136,17 @@ mod tests {
     fn application_dirs_put_the_user_first_and_include_the_system() {
         let _lock = ENV_LOCK.lock().unwrap();
         let _data_home = EnvGuard::set("XDG_DATA_HOME", "/home/test/.local/share");
-        let _data_dirs = EnvGuard::set("XDG_DATA_DIRS", "/usr/share:/var/lib/flatpak/exports/share");
+        let _data_dirs =
+            EnvGuard::set("XDG_DATA_DIRS", "/usr/share:/var/lib/flatpak/exports/share");
 
         let dirs = application_dirs();
-        assert_eq!(dirs[0], PathBuf::from("/home/test/.local/share/applications"));
-        assert!(dirs.contains(&PathBuf::from("/var/lib/flatpak/exports/share/applications")));
+        assert_eq!(
+            dirs[0],
+            PathBuf::from("/home/test/.local/share/applications")
+        );
+        assert!(dirs.contains(&PathBuf::from(
+            "/var/lib/flatpak/exports/share/applications"
+        )));
     }
 
     #[test]

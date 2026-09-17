@@ -238,12 +238,7 @@ mod tests {
 
     #[test]
     fn timed_animation_walks_from_start_to_finish() {
-        let mut anim = Animation::timed(
-            0.0f64,
-            100.0,
-            Duration::from_millis(100),
-            Easing::Linear,
-        );
+        let mut anim = Animation::timed(0.0f64, 100.0, Duration::from_millis(100), Easing::Linear);
         assert_eq!(anim.value(), 0.0);
 
         anim.advance(Duration::from_millis(50));
@@ -281,9 +276,8 @@ mod tests {
 
     #[test]
     fn delay_holds_the_value_at_the_start() {
-        let mut anim =
-            Animation::timed(0.0f64, 100.0, Duration::from_millis(100), Easing::Linear)
-                .with_delay(Duration::from_millis(50));
+        let mut anim = Animation::timed(0.0f64, 100.0, Duration::from_millis(100), Easing::Linear)
+            .with_delay(Duration::from_millis(50));
 
         anim.advance(Duration::from_millis(40));
         assert_eq!(anim.value(), 0.0);

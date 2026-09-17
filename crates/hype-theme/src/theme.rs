@@ -241,6 +241,136 @@ impl Theme {
 
         css.push_str(&format!(
             r#"
+/* Базовые виджеты.
+   Именованных цветов выше достаточно приложениям на libadwaita, но обычное
+   GTK-приложение о них не знает — ему нужны настоящие правила. */
+window,
+.background,
+dialog {{
+  background-color: @hype_bg;
+  color: @hype_fg;
+}}
+
+/* Шапке окна нужны сразу три селектора: GTK рисует её фон на вложенном
+   windowhandle, а часть приложений вешает класс .titlebar на свой виджет. */
+headerbar,
+headerbar > windowhandle,
+.titlebar {{
+  background-image: none;
+  background-color: @hype_surface_raised;
+  color: @hype_fg;
+  border-bottom: 1px solid @hype_border;
+}}
+
+headerbar:backdrop,
+headerbar > windowhandle:backdrop,
+.titlebar:backdrop {{
+  background-color: @hype_bg;
+  color: @hype_fg_dim;
+}}
+
+windowcontrols button {{
+  background: none;
+  background-image: none;
+  border-color: transparent;
+  color: @hype_fg;
+}}
+
+windowcontrols button:hover {{
+  background-color: {hover_raised};
+}}
+
+list,
+listview,
+columnview,
+.view,
+textview text {{
+  background-color: @hype_surface;
+  color: @hype_fg;
+}}
+
+list > row:selected,
+listview > row:selected,
+row:selected {{
+  background-color: {selection};
+  color: @hype_fg;
+}}
+
+list > row:hover,
+listview > row:hover {{
+  background-color: {hover};
+}}
+
+.navigation-sidebar {{
+  background-color: @hype_surface;
+  color: @hype_fg;
+}}
+
+popover > contents,
+menu,
+.menu {{
+  background-color: @hype_popover_bg;
+  color: @hype_fg;
+  border: 1px solid @hype_border;
+  border-radius: {medium}px;
+}}
+
+/* background-image: none обязателен: Adwaita заливает кнопки градиентом,
+   который иначе перекрывает наш цвет и оставляет светлый прямоугольник. */
+button {{
+  background-image: none;
+  background-color: @hype_surface_raised;
+  color: @hype_fg;
+  border: 1px solid @hype_border;
+  border-radius: {small}px;
+}}
+
+button:hover {{
+  background-color: {hover_raised};
+}}
+
+button.flat {{
+  background: none;
+  background-image: none;
+  border-color: transparent;
+}}
+
+button:disabled {{
+  color: @hype_fg_disabled;
+}}
+
+entry,
+spinbutton {{
+  background-image: none;
+  background-color: @hype_surface;
+  color: @hype_fg;
+  border: 1px solid @hype_border;
+  border-radius: {small}px;
+}}
+
+entry:focus-within {{
+  border-color: @hype_accent;
+}}
+
+separator {{
+  background-color: @hype_border;
+}}
+
+scrollbar {{
+  background-color: transparent;
+}}
+
+scrollbar slider {{
+  background-color: @hype_fg_disabled;
+  border-radius: {small}px;
+}}
+
+tooltip {{
+  background-color: @hype_overlay;
+  color: @hype_fg;
+  border-radius: {small}px;
+}}
+
 /* Общие правила HypeDE */
 .hype-panel {{
   background-color: @hype_panel_bg;
@@ -290,6 +420,8 @@ button.hype-primary {{
             small = self.radii.small,
             on_accent = p.on_accent.to_css_rgba(),
             selection = p.accent_bg.with_alpha(0.28).to_css_rgba(),
+            hover = p.fg.with_alpha(0.07).to_css_rgba(),
+            hover_raised = p.fg.with_alpha(0.10).to_css_rgba(),
         ));
 
         css
@@ -384,6 +516,39 @@ mod tests {
         let css = theme.to_gtk_css();
         assert!(css.contains("\"Cantarell\""));
         assert!(css.contains("12.5pt"));
+    }
+
+    #[test]
+    fn css_styles_plain_gtk_widgets_too() {
+        // Без этих правил приложение, не использующее libadwaita, осталось бы
+        // в системной теме, и среда выглядела бы разнородной.
+        let css = Theme::default().to_gtk_css();
+        for selector in [
+            "window,",
+            "headerbar,",
+            "headerbar > windowhandle,",
+            "windowcontrols button {",
+            "button {",
+            "entry,",
+            "popover > contents,",
+        ] {
+            assert!(css.contains(selector), "нет правила для {selector}");
+        }
+    }
+
+    #[test]
+    fn interactive_widgets_drop_the_adwaita_gradient() {
+        // Без background-image: none кнопка остаётся светлой поверх тёмной
+        // темы — эту ошибку видно только глазами, поэтому она закреплена здесь.
+        let css = Theme::default().to_gtk_css();
+        let button_rule = css
+            .split("button {")
+            .nth(1)
+            .expect("в CSS нет правила для кнопки");
+        assert!(
+            button_rule[..button_rule.find('}').unwrap()].contains("background-image: none"),
+            "кнопка не сбрасывает градиент"
+        );
     }
 
     #[test]

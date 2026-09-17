@@ -44,3 +44,8 @@ features = [
 
 [dependencies.smithay-drm-extras]
 version = "0.1"
+# Возможность display-info включена по умолчанию и тянет системную
+# libdisplay-info, привязанную к версии ниже 0.3. В Arch и CachyOS стоит уже
+# 0.3, и сборка на них ломается. Нам оттуда нужен только обход разъёмов
+# видеокарты, поэтому разбор EDID отключён.
+default-features = false

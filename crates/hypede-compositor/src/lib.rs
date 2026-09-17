@@ -12,6 +12,7 @@
 #![deny(rust_2018_idioms)]
 
 mod actions;
+pub mod drm;
 mod handlers;
 mod input;
 pub mod ipc;

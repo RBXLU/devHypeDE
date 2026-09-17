@@ -11,7 +11,7 @@ use hype_ipc::{Event, OutputInfo, State as IpcState, WindowInfo, WorkspaceInfo};
 use smithay::desktop::{PopupManager, Space, Window, WindowSurfaceType};
 use smithay::input::{Seat, SeatState};
 use smithay::reexports::calloop::generic::Generic;
-use smithay::reexports::calloop::{EventLoop, Interest, LoopSignal, Mode, PostAction};
+use smithay::reexports::calloop::{EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction};
 use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::reexports::wayland_server::{Display, DisplayHandle};
@@ -91,6 +91,7 @@ pub struct HypeState {
     pub socket_name: OsString,
     pub display_handle: DisplayHandle,
     pub loop_signal: LoopSignal,
+    pub loop_handle: LoopHandle<'static, LoopData>,
 
     pub space: Space<Window>,
     pub popups: PopupManager,
@@ -110,6 +111,8 @@ pub struct HypeState {
     pub windows: HashMap<u64, ManagedWindow>,
     next_window_id: u64,
     pub ipc: Option<IpcServer>,
+    /// Состояние бэкенда DRM. `None` во вложенном режиме.
+    pub drm: Option<crate::drm::DrmState>,
     /// Нужна ли перерисовка — выставляется анимациями и изменениями раскладки.
     pub redraw_needed: bool,
 }
@@ -153,6 +156,7 @@ impl HypeState {
             socket_name,
             display_handle: dh,
             loop_signal: event_loop.get_signal(),
+            loop_handle: event_loop.handle(),
             space: Space::default(),
             popups: PopupManager::default(),
             compositor_state,
@@ -167,6 +171,7 @@ impl HypeState {
             windows: HashMap::new(),
             next_window_id: 1,
             ipc: None,
+            drm: None,
             redraw_needed: true,
         }
     }

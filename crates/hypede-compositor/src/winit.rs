@@ -145,7 +145,7 @@ pub fn init(
 }
 
 /// Переводит цвет темы в формат, который ждёт отрисовка.
-fn clear_color(color: &Color) -> [f32; 4] {
+pub fn clear_color(color: &Color) -> [f32; 4] {
     [color.r as f32, color.g as f32, color.b as f32, 1.0]
 }
 

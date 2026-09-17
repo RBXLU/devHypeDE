@@ -2,14 +2,57 @@
 
 use std::process::ExitCode;
 
+use std::time::Duration;
+
 use hype_ipc::Listener;
 use hypede_compositor::ipc::{IpcServer, PendingRequest};
 use hypede_compositor::state::{HypeState, LoopData};
-use hypede_compositor::winit;
+use hypede_compositor::{drm, winit};
 use smithay::reexports::calloop::channel;
 use smithay::reexports::calloop::EventLoop;
 use smithay::reexports::wayland_server::Display;
 use tracing::{error, info, warn};
+
+/// Как композитор выводит картинку.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BackendKind {
+    /// Окно внутри другого сеанса — режим разработки.
+    Nested,
+    /// Прямой доступ к видеокарте — настоящий сеанс.
+    Drm,
+}
+
+impl BackendKind {
+    /// Выбирает бэкенд по аргументам и окружению.
+    ///
+    /// Наличие `WAYLAND_DISPLAY` или `DISPLAY` означает, что вокруг уже есть
+    /// сеанс: забирать у него видеокарту нельзя, значит запускаемся окном.
+    /// Пустая консоль — значит, мы и есть сеанс.
+    fn detect(args: &[String], env: impl Fn(&str) -> Option<String>) -> Result<Self, String> {
+        for arg in args {
+            match arg.as_str() {
+                "--drm" | "--backend=drm" | "--tty" => return Ok(BackendKind::Drm),
+                "--winit" | "--backend=winit" | "--nested" => return Ok(BackendKind::Nested),
+                other if other.starts_with("--backend=") => {
+                    return Err(format!(
+                        "неизвестный бэкенд {:?}; доступны drm и winit",
+                        &other["--backend=".len()..]
+                    ))
+                }
+                _ => {}
+            }
+        }
+
+        let has_session = env("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty())
+            || env("DISPLAY").is_some_and(|v| !v.is_empty());
+
+        Ok(if has_session {
+            BackendKind::Nested
+        } else {
+            BackendKind::Drm
+        })
+    }
+}
 
 fn main() -> ExitCode {
     init_logging();
@@ -30,6 +73,15 @@ fn init_logging() {
 }
 
 fn run() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        print!("{HELP}");
+        return Ok(());
+    }
+
+    let backend = BackendKind::detect(&args, |key| std::env::var(key).ok())
+        .map_err(|message| anyhow::anyhow!(message))?;
+
     let loaded = hype_config::load()?;
     for warning in &loaded.warnings {
         warn!("настройки: {warning}");
@@ -57,7 +109,17 @@ fn run() -> anyhow::Result<()> {
         display_handle,
     };
 
-    winit::init(&mut event_loop, &mut data)?;
+    match backend {
+        BackendKind::Nested => {
+            info!("бэкенд: окно внутри текущего сеанса");
+            winit::init(&mut event_loop, &mut data)?;
+        }
+        BackendKind::Drm => {
+            info!("бэкенд: прямой доступ к видеокарте");
+            drm::init(&mut event_loop, &mut data)?;
+        }
+    }
+
     start_control_socket(&mut event_loop, &mut data);
 
     info!(
@@ -81,8 +143,87 @@ fn run() -> anyhow::Result<()> {
         data.state.dispatch(&action);
     }
 
-    event_loop.run(None, &mut data, |_| {})?;
+    // Такт в 8 мс достаточно част для экрана в 120 Гц и почти ничего не стоит,
+    // когда на экране ничего не движется: обработчик сразу выходит.
+    event_loop.run(Some(Duration::from_millis(8)), &mut data, |data| {
+        data.state.tick_drm();
+    })?;
     Ok(())
+}
+
+/// Справка по аргументам.
+const HELP: &str = "\
+hypede-comp — композитор HypeDE
+
+Использование:
+  hypede-comp [--drm | --winit]
+
+  --drm     прямой доступ к видеокарте: полноценный сеанс из консоли
+  --winit   окно внутри текущего сеанса: режим разработки
+
+Без аргументов бэкенд выбирается сам: если вокруг уже есть сеанс
+(задан WAYLAND_DISPLAY или DISPLAY) — окном, иначе — на видеокарте.
+";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn no_env(_: &str) -> Option<String> {
+        None
+    }
+
+    #[test]
+    fn an_explicit_flag_wins_over_the_environment() {
+        let inside_session = |key: &str| (key == "WAYLAND_DISPLAY").then(|| "wayland-0".to_string());
+
+        assert_eq!(
+            BackendKind::detect(&args(&["--drm"]), inside_session).unwrap(),
+            BackendKind::Drm
+        );
+        assert_eq!(
+            BackendKind::detect(&args(&["--winit"]), no_env).unwrap(),
+            BackendKind::Nested
+        );
+    }
+
+    #[test]
+    fn a_running_session_means_nested() {
+        for variable in ["WAYLAND_DISPLAY", "DISPLAY"] {
+            let env = |key: &str| (key == variable).then(|| ":0".to_string());
+            assert_eq!(
+                BackendKind::detect(&[], env).unwrap(),
+                BackendKind::Nested,
+                "{variable}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_bare_console_means_the_graphics_card() {
+        assert_eq!(BackendKind::detect(&[], no_env).unwrap(), BackendKind::Drm);
+    }
+
+    #[test]
+    fn an_empty_variable_is_treated_as_unset() {
+        let env = |key: &str| (key == "DISPLAY").then(String::new);
+        assert_eq!(BackendKind::detect(&[], env).unwrap(), BackendKind::Drm);
+    }
+
+    #[test]
+    fn an_unknown_backend_is_reported() {
+        let err = BackendKind::detect(&args(&["--backend=vulkan"]), no_env).unwrap_err();
+        assert!(err.contains("vulkan"), "{err}");
+    }
+
+    #[test]
+    fn the_help_text_mentions_both_backends() {
+        assert!(HELP.contains("--drm") && HELP.contains("--winit"));
+    }
 }
 
 /// Поднимает сокет управления.

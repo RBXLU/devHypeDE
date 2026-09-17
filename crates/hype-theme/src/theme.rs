@@ -371,6 +371,48 @@ tooltip {{
   border-radius: {small}px;
 }}
 
+/* Элементы, которые GTK красит собственным акцентом. Без этих правил в
+   середине нашей темы остаются синие ползунки и переключатели. */
+scale trough {{
+  background-color: @hype_border;
+}}
+
+scale highlight,
+progressbar progress,
+levelbar block.filled {{
+  background-image: none;
+  background-color: @hype_accent_bg;
+}}
+
+scale slider {{
+  background-image: none;
+  background-color: @hype_fg;
+  border-color: @hype_border;
+}}
+
+switch {{
+  background-image: none;
+  background-color: @hype_border;
+}}
+
+switch:checked {{
+  background-image: none;
+  background-color: @hype_accent_bg;
+}}
+
+check:checked,
+radio:checked,
+checkbutton check:checked {{
+  background-image: none;
+  background-color: @hype_accent_bg;
+  color: {on_accent};
+}}
+
+stackswitcher button:checked,
+.navigation-sidebar row:selected {{
+  background-color: {selection};
+}}
+
 /* Общие правила HypeDE */
 .hype-panel {{
   background-color: @hype_panel_bg;
@@ -528,6 +570,8 @@ mod tests {
             "headerbar,",
             "headerbar > windowhandle,",
             "windowcontrols button {",
+            "scale highlight,",
+            "switch:checked {",
             "button {",
             "entry,",
             "popover > contents,",

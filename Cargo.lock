@@ -927,6 +927,15 @@ dependencies = [
 [[package]]
 name = "hypede-settings"
 version = "0.1.0"
+dependencies = [
+ "gtk4",
+ "hype-anim",
+ "hype-config",
+ "hype-ipc",
+ "hype-theme",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "hypede-shell"

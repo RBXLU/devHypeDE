@@ -165,6 +165,41 @@ hypede-comp — композитор HypeDE
 (задан WAYLAND_DISPLAY или DISPLAY) — окном, иначе — на видеокарте.
 ";
 
+/// Поднимает сокет управления.
+///
+/// Без него среда работает, поэтому отказ — это предупреждение, а не остановка
+/// сеанса: лучше потерять `hypectl`, чем рабочий стол.
+fn start_control_socket(event_loop: &mut EventLoop<'static, LoopData>, data: &mut LoopData) {
+    let listener = match Listener::bind_default() {
+        Ok(listener) => listener,
+        Err(err) => {
+            warn!("управление по сокету недоступно: {err}");
+            return;
+        }
+    };
+    info!("сокет управления: {}", listener.path().display());
+
+    let (sender, receiver) = channel::channel::<PendingRequest>();
+
+    let inserted = event_loop
+        .handle()
+        .insert_source(receiver, |event, _, data| {
+            if let channel::Event::Msg(pending) = event {
+                let response = data.state.handle_ipc_request(pending.request);
+                // Клиент мог отключиться, пока запрос ждал очереди.
+                let _ = pending.reply.send(response);
+            }
+        })
+        .is_ok();
+
+    if !inserted {
+        warn!("не удалось подключить канал управления к циклу событий");
+        return;
+    }
+
+    data.state.ipc = Some(IpcServer::start(listener, sender));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,7 +214,8 @@ mod tests {
 
     #[test]
     fn an_explicit_flag_wins_over_the_environment() {
-        let inside_session = |key: &str| (key == "WAYLAND_DISPLAY").then(|| "wayland-0".to_string());
+        let inside_session =
+            |key: &str| (key == "WAYLAND_DISPLAY").then(|| "wayland-0".to_string());
 
         assert_eq!(
             BackendKind::detect(&args(&["--drm"]), inside_session).unwrap(),
@@ -224,39 +260,4 @@ mod tests {
     fn the_help_text_mentions_both_backends() {
         assert!(HELP.contains("--drm") && HELP.contains("--winit"));
     }
-}
-
-/// Поднимает сокет управления.
-///
-/// Без него среда работает, поэтому отказ — это предупреждение, а не остановка
-/// сеанса: лучше потерять `hypectl`, чем рабочий стол.
-fn start_control_socket(event_loop: &mut EventLoop<'static, LoopData>, data: &mut LoopData) {
-    let listener = match Listener::bind_default() {
-        Ok(listener) => listener,
-        Err(err) => {
-            warn!("управление по сокету недоступно: {err}");
-            return;
-        }
-    };
-    info!("сокет управления: {}", listener.path().display());
-
-    let (sender, receiver) = channel::channel::<PendingRequest>();
-
-    let inserted = event_loop
-        .handle()
-        .insert_source(receiver, |event, _, data| {
-            if let channel::Event::Msg(pending) = event {
-                let response = data.state.handle_ipc_request(pending.request);
-                // Клиент мог отключиться, пока запрос ждал очереди.
-                let _ = pending.reply.send(response);
-            }
-        })
-        .is_ok();
-
-    if !inserted {
-        warn!("не удалось подключить канал управления к циклу событий");
-        return;
-    }
-
-    data.state.ipc = Some(IpcServer::start(listener, sender));
 }

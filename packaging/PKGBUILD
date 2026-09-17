@@ -34,6 +34,9 @@ optdepends=(
   'inter-font: шрифт интерфейса по умолчанию'
   'ttf-jetbrains-mono: моноширинный шрифт по умолчанию'
   'xdg-desktop-portal-gtk: диалоги открытия файлов для приложений'
+  'pipewire: звуки среды (pw-play)'
+  'librsvg: значки в формате SVG'
+  'adwaita-cursors: указатель мыши, выбранный по умолчанию'
 )
 provides=('hypede')
 conflicts=('hypede')
@@ -66,6 +69,22 @@ package() {
     "$pkgdir/usr/share/icons/hicolor/scalable/apps/hypede.svg"
   install -Dm644 branding/hypede-symbolic.svg \
     "$pkgdir/usr/share/icons/hicolor/symbolic/apps/hypede-symbolic.svg"
+
+  # Значки приложений среды кладутся в запасную тему hicolor: так они
+  # находятся при любой выбранной теме значков.
+  find assets/icons/hicolor -type f \( -name '*.svg' -o -name '*.png' \) |
+    while read -r icon; do
+      install -Dm644 "$icon" "$pkgdir/usr/share/icons/${icon#assets/icons/}"
+    done
+
+  # Обои и звуки среды.
+  for wallpaper in assets/wallpapers/*.png assets/wallpapers/*.svg; do
+    install -Dm644 "$wallpaper" \
+      "$pkgdir/usr/share/hypede/wallpapers/$(basename "$wallpaper")"
+  done
+  for sound in assets/sounds/*.wav; do
+    install -Dm644 "$sound" "$pkgdir/usr/share/hypede/sounds/$(basename "$sound")"
+  done
 
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   for doc in docs/*.md; do

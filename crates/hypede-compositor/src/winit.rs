@@ -9,7 +9,6 @@ use std::time::Duration;
 
 use hype_theme::Color;
 use smithay::backend::renderer::damage::OutputDamageTracker;
-use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::winit::{self, WinitEvent};
 use smithay::output::{Mode, Output, PhysicalProperties, Subpixel};
@@ -75,8 +74,9 @@ pub fn init(
                         None,
                         None,
                     );
-                    // Окно композитора изменилось — раскладка обязана
+                    // Окно композитора изменилось — раскладка и обои обязаны
                     // перестроиться под новый размер.
+                    state.invalidate_wallpaper();
                     state.relayout();
                 }
                 WinitEvent::Input(event) => state.process_input_event(event),
@@ -84,6 +84,8 @@ pub fn init(
                     state.advance_animations();
 
                     let size = backend.window_size();
+                    state.rebuild_wallpaper((size.w.max(0) as u32, size.h.max(0) as u32));
+
                     let damage = Rectangle::from_size(size);
                     let clear = clear_color(&state.config.theme.palette().bg);
 
@@ -96,20 +98,18 @@ pub fn init(
                             }
                         };
 
-                        if let Err(err) = smithay::desktop::space::render_output::<
-                            _,
-                            WaylandSurfaceRenderElement<GlesRenderer>,
-                            _,
-                            _,
-                        >(
+                        let elements = crate::render::output_elements(
+                            renderer,
+                            &state.space,
                             &output,
+                            state.wallpaper.as_ref(),
+                        );
+
+                        if let Err(err) = damage_tracker.render_output(
                             renderer,
                             &mut framebuffer,
-                            1.0,
                             0,
-                            [&state.space],
-                            &[],
-                            &mut damage_tracker,
+                            &elements,
                             clear,
                         ) {
                             tracing::error!("ошибка отрисовки: {err}");

@@ -22,11 +22,13 @@ pub struct Radii {
 
 impl Default for Radii {
     fn default() -> Self {
+        // Крупные скругления — основа минималистичного облика: у формы почти
+        // нет других деталей, поэтому именно скругление задаёт характер.
         Self {
-            small: 6.0,
-            medium: 10.0,
-            large: 16.0,
-            window: 12.0,
+            small: 8.0,
+            medium: 14.0,
+            large: 22.0,
+            window: 16.0,
         }
     }
 }
@@ -48,7 +50,7 @@ impl Default for Typography {
             // подставит ближайший.
             family: "Inter".into(),
             monospace_family: "JetBrains Mono".into(),
-            size_pt: 11.0,
+            size_pt: 10.5,
         }
     }
 }
@@ -103,10 +105,12 @@ pub struct Effects {
 impl Default for Effects {
     fn default() -> Self {
         Self {
-            panel_opacity: 0.86,
-            popover_opacity: 0.96,
-            blur_radius: 24.0,
-            inactive_dim: 0.08,
+            panel_opacity: 0.92,
+            popover_opacity: 0.98,
+            blur_radius: 32.0,
+            // Неактивное окно почти не тускнеет: в светлой теме заметное
+            // затемнение выглядит поломкой, а не подсказкой.
+            inactive_dim: 0.04,
         }
     }
 }
@@ -116,7 +120,10 @@ impl Default for Effects {
 #[serde(default)]
 pub struct Theme {
     pub name: String,
+    /// Схема окон приложений.
     pub variant: Variant,
+    /// Схема оболочки. По умолчанию тёмная независимо от схемы окон.
+    pub shell_variant: Variant,
     pub accent: Color,
     pub radii: Radii,
     pub typography: Typography,
@@ -128,11 +135,21 @@ pub struct Theme {
 
 impl Default for Theme {
     fn default() -> Self {
+        Self::light()
+    }
+}
+
+impl Theme {
+    /// Основная тема среды: светлая, спокойная, с синим акцентом.
+    ///
+    /// Облик выбран минималистичным сознательно: чем меньше у интерфейса
+    /// собственных деталей, тем меньше он спорит с содержимым окон.
+    pub fn light() -> Self {
         Self {
-            name: "HypeDE Night".into(),
-            variant: Variant::Dark,
-            // Фирменный фиолетовый HypeDE.
-            accent: Color::from_rgb8(0x7c, 0x3a, 0xed),
+            name: "HypeDE Light".into(),
+            variant: Variant::Light,
+            shell_variant: Variant::Dark,
+            accent: Color::from_rgb8(0x1a, 0x73, 0xe8),
             radii: Radii::default(),
             typography: Typography::default(),
             motion: Motion::default(),
@@ -140,23 +157,41 @@ impl Default for Theme {
             spacing: 6.0,
         }
     }
-}
 
-impl Theme {
-    /// Светлая версия темы по умолчанию.
-    pub fn default_light() -> Self {
+    /// Тёмная версия основной темы.
+    pub fn dark() -> Self {
         Self {
-            name: "HypeDE Day".into(),
-            variant: Variant::Light,
-            ..Self::default()
+            name: "HypeDE Dark".into(),
+            variant: Variant::Dark,
+            ..Self::light()
         }
     }
 
-    /// Вычисляет палитру. Специально не кэшируется в структуре: тема
-    /// сериализуется в конфиг, и хранить в нём производные цвета — верный
+    /// Прежняя фиолетовая тема — осталась как готовый вариант оформления.
+    pub fn violet_night() -> Self {
+        Self {
+            name: "HypeDE Violet".into(),
+            variant: Variant::Dark,
+            accent: Color::from_rgb8(0x7c, 0x3a, 0xed),
+            ..Self::light()
+        }
+    }
+
+    /// Вычисляет палитру приложений. Специально не кэшируется в структуре:
+    /// тема сериализуется в конфиг, и хранить в нём производные цвета — верный
     /// способ однажды получить палитру, не соответствующую акценту.
     pub fn palette(&self) -> Palette {
         Palette::from_accent(self.accent, self.variant)
+    }
+
+    /// Палитра оболочки — полки, поиска приложений и панели состояния.
+    ///
+    /// Оболочка живёт поверх обоев, а не поверх окна, поэтому её цвета не
+    /// обязаны совпадать с цветами приложений. Тёмная подложка одинаково
+    /// уверенно читается и на светлом снимке неба, и на тёмной фотографии, и
+    /// не спорит со светлыми окнами поверх неё.
+    pub fn shell_palette(&self) -> Palette {
+        Palette::from_accent(self.accent, self.shell_variant)
     }
 
     /// Отступ в `steps` шагах базовой сетки.
@@ -168,6 +203,7 @@ impl Theme {
     /// стандартные виджеты подхватывают тему без единой правки в приложениях.
     pub fn to_gtk_css(&self) -> String {
         let p = self.palette();
+        let shell = self.shell_palette();
         let mut css = String::new();
 
         css.push_str(&format!(
@@ -266,6 +302,23 @@ headerbar > windowhandle,
   background-color: @hype_surface_raised;
   color: @hype_fg;
   border-bottom: 1px solid @hype_border;
+}}
+
+/* Скругление окна рисует сам клиент: узел decoration отвечает за рамку и
+   тень вокруг содержимого. */
+decoration {{
+  border-radius: {window_radius}px;
+  box-shadow: 0 6px 28px {shadow};
+}}
+
+decoration:backdrop {{
+  box-shadow: 0 2px 12px {shadow};
+}}
+
+headerbar,
+headerbar > windowhandle {{
+  border-top-left-radius: {window_radius}px;
+  border-top-right-radius: {window_radius}px;
 }}
 
 headerbar:backdrop,
@@ -419,7 +472,205 @@ stackswitcher button:checked,
   background-color: {selection};
 }}
 
+/* ---- Оболочка ----
+   Полка, поиск приложений и панель состояния живут поверх обоев, поэтому у
+   них своя, всегда тёмная палитра: она одинаково читается и на светлом небе,
+   и на тёмной фотографии. */
+
+.hype-shell {{
+  color: {shell_fg};
+}}
+
+/* Полка прижата к краю экрана во всю ширину: это край рабочего стола, а не
+   плавающая панель, поэтому скруглений у неё нет. */
+.hype-shelf {{
+  background-color: {shelf_bg};
+  color: {shell_fg};
+}}
+
+/* Кнопка запуска — круг у левого края. */
+.hype-launcher-button {{
+  background-image: none;
+  background-color: {shell_raised};
+  color: {shell_fg};
+  border: none;
+  border-radius: 999px;
+  min-width: {round_button}px;
+  min-height: {round_button}px;
+  padding: 0;
+}}
+
+.hype-launcher-button:hover {{
+  background-color: {shell_hover_strong};
+}}
+
+/* Значки приложений на полке: круглая подложка, как у значков в лаунчере. */
+.hype-shelf-button {{
+  background: none;
+  background-image: none;
+  border: none;
+  border-radius: 999px;
+  padding: {shelf_button_padding}px;
+}}
+
+.hype-shelf-button:hover {{
+  background-color: {shell_hover};
+}}
+
+/* Запущенное приложение отмечается точкой под значком — так же, как это
+   привычно на полке любой системы с доком. */
+.hype-running-dot {{
+  background-color: {shell_fg};
+  border-radius: 999px;
+  min-width: 4px;
+  min-height: 4px;
+}}
+
+.hype-running-dot.hype-hidden {{
+  background-color: transparent;
+}}
+
+/* Область состояния справа — одна пилюля. */
+.hype-tray {{
+  background: none;
+  background-image: none;
+  border: none;
+  color: {shell_fg};
+  border-radius: 999px;
+  padding: {tray_padding_v}px {tray_padding_h}px;
+}}
+
+.hype-tray:hover {{
+  background-color: {shell_hover};
+}}
+
+/* Поиск приложений и панель быстрых настроек. */
+.hype-launcher,
+.hype-bubble {{
+  background-color: {shell_bg};
+  color: {shell_fg};
+  border: 1px solid {shell_border};
+  border-radius: {shell_radius}px;
+}}
+
+/* Фон всплывающей панели GTK рисует не на самом виджете, а на вложенном
+   узле contents: без этого правила панель осталась бы светлой. */
+popover.hype-bubble > contents {{
+  background-color: {shell_bg};
+  background-image: none;
+  color: {shell_fg};
+  border: 1px solid {shell_border};
+  border-radius: {shell_radius}px;
+  padding: 0;
+}}
+
+popover.hype-bubble > arrow {{
+  background-color: {shell_bg};
+  border-color: {shell_border};
+}}
+
+popover.hype-bubble label {{
+  color: {shell_fg};
+}}
+
+entry.hype-search,
+.hype-search entry,
+.hype-search {{
+  background-color: {shell_raised};
+  background-image: none;
+  color: {shell_fg};
+  border: none;
+  border-radius: 999px;
+  padding: {search_padding}px {search_padding_h}px;
+}}
+
+entry.hype-search:focus-within {{
+  background-color: {shell_hover_strong};
+}}
+
+/* Плитка приложения в сетке. */
+.hype-app-tile {{
+  background: none;
+  background-image: none;
+  border: none;
+  border-radius: {medium}px;
+  padding: {tile_padding}px;
+  color: {shell_fg};
+}}
+
+.hype-app-tile:hover,
+.hype-app-tile:selected {{
+  background-color: {shell_hover};
+}}
+
+/* Круглая подложка под значком приложения: в оригинале значки тоже круглые,
+   и именно это делает сетку узнаваемой. */
+.hype-icon-circle {{
+  background-color: {icon_circle};
+  border-radius: 999px;
+  padding: {icon_padding}px;
+}}
+
+/* Точка под значком запущенного приложения. */
+.hype-running-dot {{
+  margin-top: 1px;
+}}
+
+/* Круглые кнопки в панели быстрых настроек. */
+.hype-round-button {{
+  background-image: none;
+  background-color: {shell_raised};
+  color: {shell_fg};
+  border: none;
+  border-radius: 999px;
+  min-width: {round_button}px;
+  min-height: {round_button}px;
+  padding: 0;
+}}
+
+.hype-round-button:hover {{
+  background-color: {shell_hover_strong};
+}}
+
+.hype-round-button.hype-active {{
+  background-color: {shell_accent};
+  color: {shell_on_accent};
+}}
+
+/* Пилюля с надписью — «Выйти» и подобные. */
+.hype-pill-button {{
+  background-image: none;
+  background-color: {shell_raised};
+  color: {shell_fg};
+  border: none;
+  border-radius: 999px;
+  padding: {shell_pill_v}px {shell_pill_h}px;
+}}
+
+.hype-pill-button:hover {{
+  background-color: {shell_hover_strong};
+}}
+
+.hype-shell-dim {{
+  color: {shell_fg_dim};
+}}
+
+/* Текущий рабочий стол на полке. */
+.hype-workspace-active {{
+  background-color: {shell_hover_strong};
+  color: {shell_fg};
+}}
+
+.hype-shell scale trough {{
+  background-color: {shell_raised};
+}}
+
+.hype-shell scale highlight {{
+  background-color: {shell_accent};
+}}
+
 /* Общие правила HypeDE */
+
 .hype-panel {{
   background-color: @hype_panel_bg;
   color: @hype_fg;
@@ -458,6 +709,33 @@ button.hype-primary {{
   border-radius: {small}px;
 }}
 "#,
+            shell_fg = shell.fg.to_css_rgba(),
+            shell_fg_dim = shell.fg_dim.to_css_rgba(),
+            shell_bg = shell.surface.with_alpha(0.97).to_css_rgba(),
+            shelf_bg = shell
+                .bg
+                .with_alpha(self.effects.panel_opacity)
+                .to_css_rgba(),
+            shell_raised = shell.fg.with_alpha(0.10).to_css_rgba(),
+            shell_hover = shell.fg.with_alpha(0.08).to_css_rgba(),
+            shell_hover_strong = shell.fg.with_alpha(0.16).to_css_rgba(),
+            shell_border = shell.fg.with_alpha(0.08).to_css_rgba(),
+            shell_accent = shell.accent.to_css_rgba(),
+            shell_on_accent = shell.bg.to_css_rgba(),
+            shell_radius = self.radii.large,
+            icon_circle = Color::WHITE.to_css_rgba(),
+            icon_padding = self.space(1.0),
+            round_button = self.space(6.0),
+            shell_pill_v = self.space(1.0),
+            shell_pill_h = self.space(2.5),
+            window_radius = self.radii.window,
+            shadow = p.shadow.to_css_rgba(),
+            shelf_button_padding = self.space(0.5),
+            tray_padding_v = self.space(1.0),
+            tray_padding_h = self.space(2.0),
+            search_padding = self.space(1.5),
+            search_padding_h = self.space(2.5),
+            tile_padding = self.space(2.0),
             panel_radius = self.radii.large,
             panel_padding = self.space(1.0),
             medium = self.radii.medium,
@@ -481,18 +759,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_theme_is_dark_and_readable() {
+    fn the_default_theme_is_the_light_one() {
         let theme = Theme::default();
-        assert_eq!(theme.variant, Variant::Dark);
+        assert_eq!(theme.variant, Variant::Light);
         assert!(theme.palette().contrast_report().is_empty());
     }
 
     #[test]
-    fn light_theme_is_readable_too() {
-        assert!(Theme::default_light()
-            .palette()
-            .contrast_report()
-            .is_empty());
+    fn every_bundled_theme_is_readable() {
+        for theme in [Theme::light(), Theme::dark(), Theme::violet_night()] {
+            let issues = theme.palette().contrast_report();
+            assert!(issues.is_empty(), "{}: {issues:?}", theme.name);
+        }
+    }
+
+    #[test]
+    fn dark_and_light_differ_only_in_the_scheme() {
+        let light = Theme::light();
+        let dark = Theme::dark();
+        assert_eq!(light.accent, dark.accent);
+        assert_eq!(light.radii, dark.radii);
+        assert_ne!(light.variant, dark.variant);
     }
 
     #[test]
@@ -512,7 +799,7 @@ mod tests {
         let back: Theme = toml::from_str(&text).unwrap();
         assert_eq!(theme, back);
         // Цвет в конфиге должен быть узнаваемой строкой, а не таблицей.
-        assert!(text.contains("accent = \"#7c3aed\""), "{text}");
+        assert!(text.contains("accent = \"#1a73e8\""), "{text}");
     }
 
     #[test]
@@ -584,7 +871,9 @@ mod tests {
             "headerbar,",
             "headerbar > windowhandle,",
             "windowcontrols button {",
+            "decoration {",
             "scale highlight,",
+            "popover.hype-bubble > contents {",
             "switch:checked {",
             "button {",
             "entry,",
@@ -607,6 +896,41 @@ mod tests {
             button_rule[..button_rule.find('}').unwrap()].contains("background-image: none"),
             "кнопка не сбрасывает градиент"
         );
+    }
+
+    #[test]
+    fn css_styles_the_shelf_and_the_launcher() {
+        let css = Theme::default().to_gtk_css();
+        for selector in [
+            ".hype-shelf {",
+            ".hype-shelf-button {",
+            ".hype-launcher-button {",
+            ".hype-tray {",
+            ".hype-launcher,",
+            ".hype-icon-circle {",
+            ".hype-round-button {",
+        ] {
+            assert!(css.contains(selector), "нет правила для {selector}");
+        }
+    }
+
+    #[test]
+    fn the_shell_stays_dark_in_a_light_theme() {
+        // Полка лежит поверх обоев, а не поверх окна: её цвет не должен
+        // меняться вместе со схемой приложений.
+        let theme = Theme::light();
+        assert_eq!(theme.variant, Variant::Light);
+        assert_eq!(theme.shell_variant, Variant::Dark);
+        assert!(theme.shell_palette().bg.relative_luminance() < 0.1);
+        assert!(theme.palette().bg.relative_luminance() > 0.8);
+    }
+
+    #[test]
+    fn the_shell_palette_is_readable_too() {
+        for theme in [Theme::light(), Theme::dark(), Theme::violet_night()] {
+            let issues = theme.shell_palette().contrast_report();
+            assert!(issues.is_empty(), "{}: {issues:?}", theme.name);
+        }
     }
 
     #[test]

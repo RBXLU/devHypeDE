@@ -73,6 +73,69 @@ fn read_trimmed(path: &Path) -> Option<String> {
         .map(|text| text.trim().to_string())
 }
 
+/// Громкость звука.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Volume {
+    /// Уровень от 0 до 1 (может быть выше при усилении).
+    pub level: f64,
+    pub muted: bool,
+}
+
+impl Volume {
+    /// Значок, соответствующий громкости.
+    pub fn icon_name(&self) -> &'static str {
+        if self.muted || self.level <= 0.001 {
+            return "audio-volume-muted-symbolic";
+        }
+        match (self.level * 100.0) as u32 {
+            0..=33 => "audio-volume-low-symbolic",
+            34..=66 => "audio-volume-medium-symbolic",
+            _ => "audio-volume-high-symbolic",
+        }
+    }
+
+    pub fn percent(&self) -> u32 {
+        (self.level * 100.0).round() as u32
+    }
+}
+
+/// Разбирает вывод `wpctl get-volume @DEFAULT_AUDIO_SINK@`.
+///
+/// PipeWire печатает строку вида `Volume: 0.65` или `Volume: 0.65 [MUTED]`.
+pub fn parse_volume(output: &str) -> Option<Volume> {
+    let line = output.lines().find(|line| line.contains("Volume:"))?;
+    let rest = line.split("Volume:").nth(1)?;
+    let level: f64 = rest.split_whitespace().next()?.parse().ok()?;
+
+    Some(Volume {
+        level: level.max(0.0),
+        muted: line.contains("[MUTED]"),
+    })
+}
+
+/// Спрашивает у системы текущую громкость.
+///
+/// Возвращает `None`, если звуковой сервер не отвечает: на машине без звука
+/// индикатор просто не показывается.
+pub fn read_volume() -> Option<Volume> {
+    let output = std::process::Command::new("wpctl")
+        .args(["get-volume", "@DEFAULT_AUDIO_SINK@"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_volume(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// Задаёт громкость.
+pub fn set_volume(level: f64) {
+    let level = level.clamp(0.0, 1.0);
+    let _ = std::process::Command::new("wpctl")
+        .args(["set-volume", "@DEFAULT_AUDIO_SINK@", &format!("{level:.2}")])
+        .status();
+}
+
 /// Укорачивает заголовок окна до разумной длины.
 ///
 /// Заголовки вроде «документ.txt — Правка — Редактор» растягивают панель и
@@ -205,6 +268,43 @@ mod tests {
         assert_eq!(icon(50), "battery-low-symbolic");
         assert_eq!(icon(75), "battery-good-symbolic");
         assert_eq!(icon(100), "battery-full-symbolic");
+    }
+
+    #[test]
+    fn volume_is_parsed_from_pipewire_output() {
+        let volume = parse_volume("Volume: 0.65\n").unwrap();
+        assert!((volume.level - 0.65).abs() < 1e-9);
+        assert!(!volume.muted);
+        assert_eq!(volume.percent(), 65);
+    }
+
+    #[test]
+    fn a_muted_sink_is_recognised() {
+        let volume = parse_volume("Volume: 0.40 [MUTED]").unwrap();
+        assert!(volume.muted);
+        assert_eq!(volume.icon_name(), "audio-volume-muted-symbolic");
+    }
+
+    #[test]
+    fn volume_icons_follow_the_level() {
+        let icon = |level| {
+            Volume {
+                level,
+                muted: false,
+            }
+            .icon_name()
+        };
+        assert_eq!(icon(0.0), "audio-volume-muted-symbolic");
+        assert_eq!(icon(0.2), "audio-volume-low-symbolic");
+        assert_eq!(icon(0.5), "audio-volume-medium-symbolic");
+        assert_eq!(icon(0.9), "audio-volume-high-symbolic");
+    }
+
+    #[test]
+    fn nonsense_volume_output_is_ignored() {
+        assert!(parse_volume("").is_none());
+        assert!(parse_volume("Node not found").is_none());
+        assert!(parse_volume("Volume: громко").is_none());
     }
 
     #[test]

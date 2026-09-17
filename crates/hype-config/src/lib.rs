@@ -24,8 +24,9 @@ use std::path::{Path, PathBuf};
 
 pub use action::{Action, Direction, ScreenshotTarget};
 pub use config::{
-    default_keybinds, AnimSpec, AnimationConfig, Binding, Config, InputConfig, LayoutConfig,
-    LayoutMode, PanelConfig, PanelPosition,
+    default_keybinds, AnimSpec, AnimationConfig, Binding, Config, CursorConfig, InputConfig,
+    LayoutConfig, LayoutMode, PanelConfig, PanelPosition, SoundConfig, WallpaperConfig,
+    WallpaperMode,
 };
 pub use shortcut::{Key, Mods, Shortcut, ShortcutParseError};
 

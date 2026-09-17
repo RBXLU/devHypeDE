@@ -719,8 +719,24 @@ fn apply_settings(state: &Shared) {
         .set_text(&format!("{message}{suffix}"));
 }
 
-/// Подключает CSS темы, выгруженный композитором.
+/// Подключает CSS темы и значки среды.
+///
+/// Если файла темы нет, приложение берёт системную: его можно запустить и вне
+/// сеанса HypeDE.
 fn load_theme_css() {
+    let Some(display) = gdk::Display::default() else {
+        return;
+    };
+
+    // Собственные значки приложений находятся и без установки пакетом.
+    let icons = gtk4::IconTheme::for_display(&display);
+    for dir in hype_config::paths::asset_dirs() {
+        let path = dir.join("icons");
+        if path.is_dir() {
+            icons.add_search_path(&path);
+        }
+    }
+
     let Some(path) = hype_config::paths::generated_css_file() else {
         return;
     };
@@ -730,12 +746,9 @@ fn load_theme_css() {
 
     let provider = CssProvider::new();
     provider.load_from_file(&gtk4::gio::File::for_path(&path));
-
-    if let Some(display) = gdk::Display::default() {
-        gtk4::style_context_add_provider_for_display(
-            &display,
-            &provider,
-            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
-    }
+    gtk4::style_context_add_provider_for_display(
+        &display,
+        &provider,
+        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
 }

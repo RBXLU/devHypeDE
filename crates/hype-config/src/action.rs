@@ -66,6 +66,13 @@ pub enum Action {
     FocusDirection {
         direction: Direction,
     },
+    /// Перевести фокус на окно по его номеру.
+    ///
+    /// Нужна полке: щелчок по значку запущенного приложения должен
+    /// переключать на него, а не запускать второй экземпляр.
+    FocusWindow {
+        id: u64,
+    },
     /// Переставить текущее окно.
     MoveWindow {
         direction: Direction,
@@ -114,6 +121,7 @@ impl Action {
             Action::FocusDirection { direction } => {
                 format!("Фокус {}", direction_word(*direction))
             }
+            Action::FocusWindow { id } => format!("Фокус на окно {id}"),
             Action::MoveWindow { direction } => {
                 format!("Переместить окно {}", direction_word(*direction))
             }
@@ -311,6 +319,13 @@ mod tests {
     #[test]
     fn non_spawn_actions_have_no_command_line() {
         assert_eq!(Action::Quit.command_line(), None);
+    }
+
+    #[test]
+    fn focusing_a_window_round_trips() {
+        let action = Action::FocusWindow { id: 42 };
+        let text = toml::to_string(&Wrapper { action }).unwrap();
+        assert!(text.contains("focus-window"), "{text}");
     }
 
     #[test]

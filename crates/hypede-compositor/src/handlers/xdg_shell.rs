@@ -2,7 +2,7 @@
 
 use hype_ipc::Event;
 use smithay::delegate_xdg_shell;
-use smithay::desktop::{PopupKind, Window};
+use smithay::desktop::{find_popup_root_surface, get_popup_toplevel_coords, PopupKind, Window};
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::protocol::{wl_output, wl_seat, wl_surface::WlSurface};
 use smithay::utils::Serial;
@@ -85,6 +85,10 @@ impl XdgShellHandler for HypeState {
     }
 
     fn new_popup(&mut self, surface: PopupSurface, _positioner: PositionerState) {
+        // Меню не должно уезжать за край экрана: если оно не помещается,
+        // протокол разрешает композитору сдвинуть или отразить его.
+        self.unconstrain_popup(&surface);
+
         if let Err(err) = self.popups.track_popup(PopupKind::Xdg(surface)) {
             debug!("не удалось взять всплывающее окно под управление: {err}");
         }
@@ -163,6 +167,45 @@ impl XdgShellHandler for HypeState {
 }
 
 impl HypeState {
+    /// Вписывает всплывающее окно в границы экрана.
+    ///
+    /// Позиционер работает в координатах родительского окна, поэтому область
+    /// экрана переводится в них: вычитается положение самого окна на сцене и
+    /// смещение цепочки всплывающих окон до него. Без этого меню у нижнего
+    /// края уезжает за экран вместо того, чтобы раскрыться вверх.
+    fn unconstrain_popup(&self, surface: &PopupSurface) {
+        let kind = PopupKind::Xdg(surface.clone());
+        let Ok(root) = find_popup_root_surface(&kind) else {
+            return;
+        };
+        let Some(managed) = self
+            .windows
+            .values()
+            .find(|m| m.window.toplevel().is_some_and(|t| t.wl_surface() == &root))
+        else {
+            return;
+        };
+
+        // Берётся весь монитор, а не рабочая область: полке позволено
+        // раскрывать свою панель поверх себя.
+        let Some(output) = self.space.outputs().next() else {
+            return;
+        };
+        let Some(mut target) = self.space.output_geometry(output) else {
+            return;
+        };
+        let Some(window_geometry) = self.space.element_geometry(&managed.window) else {
+            return;
+        };
+
+        target.loc -= get_popup_toplevel_coords(&kind);
+        target.loc -= window_geometry.loc;
+
+        surface.with_pending_state(|state| {
+            state.geometry = state.positioner.get_unconstrained_geometry(target);
+        });
+    }
+
     fn set_fullscreen(&mut self, surface: &ToplevelSurface, fullscreen: bool) {
         let Some(id) = self
             .windows
@@ -210,6 +253,20 @@ delegate_xdg_shell!(HypeState);
 /// запускаются, но не появляются.
 pub fn handle_commit(state: &mut HypeState, surface: &WlSurface) {
     state.popups.commit(surface);
+
+    // Всплывающему окну тоже нужна первичная конфигурация: без неё клиент не
+    // имеет права показать меню, и оно просто не появляется — ни ошибки, ни
+    // предупреждения при этом нет.
+    if let Some(popup) = state.popups.find_popup(surface) {
+        match popup {
+            PopupKind::Xdg(ref xdg) => {
+                if !xdg.is_initial_configure_sent() {
+                    let _ = xdg.send_configure();
+                }
+            }
+            PopupKind::InputMethod(_) => {}
+        }
+    }
 
     let Some(managed) = state.windows.values().find(|m| {
         m.window

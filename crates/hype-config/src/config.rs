@@ -173,43 +173,124 @@ impl Default for AnimationConfig {
     }
 }
 
-/// Где висит панель.
+/// Где висит полка.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum PanelPosition {
-    #[default]
     Top,
+    #[default]
     Bottom,
 }
 
-/// Панель и её содержимое.
+/// Полка — панель с кнопкой запуска, значками приложений и областью состояния.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PanelConfig {
     pub enabled: bool,
     pub position: PanelPosition,
     pub height: u32,
-    /// Модули слева направо. Неизвестные имена пропускаются с предупреждением.
-    pub modules_left: Vec<String>,
-    pub modules_center: Vec<String>,
-    pub modules_right: Vec<String>,
+    /// Закреплённые приложения: идентификатор `.desktop`-файла без расширения
+    /// либо просто команда запуска.
+    pub pinned: Vec<String>,
+    /// Показывать номера рабочих столов.
+    pub show_workspaces: bool,
+    /// Показывать часы.
+    pub show_clock: bool,
+    /// Показывать заряд батареи, если она есть.
+    pub show_battery: bool,
 }
 
 impl Default for PanelConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            position: PanelPosition::Top,
-            height: 36,
-            modules_left: vec!["logo".into(), "workspaces".into(), "window-title".into()],
-            modules_center: vec!["clock".into()],
-            modules_right: vec![
-                "tray".into(),
-                "network".into(),
-                "volume".into(),
-                "battery".into(),
-                "power".into(),
+            position: PanelPosition::Bottom,
+            // Достаточно, чтобы значок с круглой подложкой и точкой запуска
+            // поместились, и при этом полка не съедала рабочее место.
+            height: 48,
+            pinned: vec![
+                "dev.hypede.Files".into(),
+                "dev.hypede.Settings".into(),
+                "foot".into(),
             ],
+            show_workspaces: true,
+            show_clock: true,
+            show_battery: true,
+        }
+    }
+}
+
+/// Как обои растягиваются по экрану.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum WallpaperMode {
+    /// Заполнить экран, обрезав лишнее по краям.
+    #[default]
+    Fill,
+    /// Вписать целиком, оставив поля.
+    Fit,
+    /// Показать в натуральную величину по центру.
+    Center,
+    /// Только сплошной цвет.
+    Color,
+}
+
+/// Фон рабочего стола.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WallpaperConfig {
+    /// Путь к изображению. Пусто — берётся встроенное из набора среды.
+    pub path: Option<std::path::PathBuf>,
+    pub mode: WallpaperMode,
+}
+
+impl Default for WallpaperConfig {
+    fn default() -> Self {
+        Self {
+            path: None,
+            mode: WallpaperMode::Fill,
+        }
+    }
+}
+
+/// Указатель мыши.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CursorConfig {
+    /// Имя темы курсоров из `/usr/share/icons`.
+    pub theme: String,
+    pub size: u32,
+}
+
+impl Default for CursorConfig {
+    fn default() -> Self {
+        Self {
+            // Тема курсоров своя у нас не рисуется: готовые наборы сделаны
+            // аккуратнее, чем вышло бы наспех. Adwaita есть в любой системе с
+            // GTK, поэтому она и стоит по умолчанию.
+            theme: "Adwaita".into(),
+            size: 24,
+        }
+    }
+}
+
+/// Звуки среды.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SoundConfig {
+    pub enabled: bool,
+    /// Каталог со звуками. Пусто — встроенный набор среды.
+    pub theme_dir: Option<std::path::PathBuf>,
+    /// Громкость от 0 до 1.
+    pub volume: f64,
+}
+
+impl Default for SoundConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            theme_dir: None,
+            volume: 0.5,
         }
     }
 }
@@ -242,6 +323,9 @@ pub struct Config {
     pub layout: LayoutConfig,
     pub animations: AnimationConfig,
     pub panel: PanelConfig,
+    pub wallpaper: WallpaperConfig,
+    pub cursor: CursorConfig,
+    pub sound: SoundConfig,
     /// Команды, запускаемые при входе в сеанс.
     pub autostart: Vec<String>,
     /// Привязки клавиш. Заданные пользователем полностью заменяют набор по
@@ -258,6 +342,9 @@ impl Default for Config {
             layout: LayoutConfig::default(),
             animations: AnimationConfig::default(),
             panel: PanelConfig::default(),
+            wallpaper: WallpaperConfig::default(),
+            cursor: CursorConfig::default(),
+            sound: SoundConfig::default(),
             autostart: Vec::new(),
             keybinds: default_keybinds(),
         }
@@ -330,7 +417,21 @@ impl Config {
             ));
         }
         if self.panel.enabled && self.panel.height == 0 {
-            warnings.push("высота панели 0 — панель не будет видна".into());
+            warnings.push("высота полки 0 — она не будет видна".into());
+        }
+        if !(0.0..=1.0).contains(&self.sound.volume) {
+            warnings.push(format!(
+                "громкость звуков {} вне диапазона 0..1",
+                self.sound.volume
+            ));
+        }
+        if self.cursor.size == 0 {
+            warnings.push("размер курсора 0 — указатель пропадёт".into());
+        }
+        if let Some(path) = &self.wallpaper.path {
+            if !path.exists() {
+                warnings.push(format!("обои {} не найдены", path.display()));
+            }
         }
         if self.theme.motion.scale > 5.0 {
             warnings.push(format!(
@@ -569,8 +670,29 @@ mod tests {
         config.layout.master_ratio = 1.5;
         config.input.pointer_accel = 9.0;
         config.panel.height = 0;
+        config.sound.volume = 3.0;
+        config.cursor.size = 0;
         let warnings = config.validate();
-        assert_eq!(warnings.len(), 3, "{warnings:?}");
+        assert_eq!(warnings.len(), 5, "{warnings:?}");
+    }
+
+    #[test]
+    fn validation_spots_missing_wallpaper() {
+        let mut config = Config::default();
+        config.wallpaper.path = Some("/нет/таких/обоев.png".into());
+        assert!(
+            config.validate().iter().any(|w| w.contains("обои")),
+            "{:?}",
+            config.validate()
+        );
+    }
+
+    #[test]
+    fn the_shelf_sits_at_the_bottom_by_default() {
+        let panel = PanelConfig::default();
+        assert_eq!(panel.position, PanelPosition::Bottom);
+        assert!(panel.height >= 44, "полка должна быть удобной для мыши");
+        assert!(!panel.pinned.is_empty(), "полка не должна быть пустой");
     }
 
     #[test]

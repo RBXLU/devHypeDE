@@ -23,6 +23,7 @@ hype-theme = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 [dependencies.smithay]
 version = "0.7"

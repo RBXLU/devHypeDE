@@ -162,6 +162,43 @@ pub fn find_applications(dirs: &[PathBuf], locale: &str) -> Vec<DesktopApp> {
     apps
 }
 
+/// Находит приложение по записи из списка закреплённых.
+///
+/// Запись — это либо идентификатор `.desktop`-файла (`dev.hypede.Files`), либо
+/// просто команда (`foot`). Первый вариант точнее, второй удобнее написать
+/// руками, поэтому поддерживаются оба.
+pub fn resolve_pinned<'a>(apps: &'a [DesktopApp], entry: &str) -> Option<&'a DesktopApp> {
+    let entry = entry.trim();
+    if entry.is_empty() {
+        return None;
+    }
+
+    let by_id = apps.iter().find(|app| {
+        app.path
+            .file_stem()
+            .map(|stem| stem.eq_ignore_ascii_case(entry))
+            .unwrap_or(false)
+    });
+    if by_id.is_some() {
+        return by_id;
+    }
+
+    // По команде: сравнивается только сама программа, без аргументов.
+    apps.iter().find(|app| {
+        app.exec
+            .split_whitespace()
+            .next()
+            .map(|program| {
+                program == entry
+                    || std::path::Path::new(program)
+                        .file_name()
+                        .map(|name| name == entry)
+                        .unwrap_or(false)
+            })
+            .unwrap_or(false)
+    })
+}
+
 /// Оценивает, насколько приложение подходит запросу.
 ///
 /// Чем больше число, тем выше в списке. `None` означает, что не подходит.
@@ -323,6 +360,53 @@ mod tests {
             terminal: false,
             path: PathBuf::new(),
         }
+    }
+
+    fn app_at(name: &str, exec: &str, path: &str) -> DesktopApp {
+        DesktopApp {
+            name: name.into(),
+            exec: exec.into(),
+            icon: String::new(),
+            comment: String::new(),
+            keywords: Vec::new(),
+            terminal: false,
+            path: PathBuf::from(path),
+        }
+    }
+
+    #[test]
+    fn pinned_entries_resolve_by_desktop_id() {
+        let apps = vec![
+            app_at(
+                "Файлы",
+                "hype-files",
+                "/usr/share/applications/dev.hypede.Files.desktop",
+            ),
+            app_at("Терминал", "foot", "/usr/share/applications/foot.desktop"),
+        ];
+        assert_eq!(
+            resolve_pinned(&apps, "dev.hypede.Files").unwrap().name,
+            "Файлы"
+        );
+    }
+
+    #[test]
+    fn pinned_entries_resolve_by_command() {
+        let apps = vec![app_at("Терминал", "foot -e sh", "/x/foot.desktop")];
+        assert_eq!(resolve_pinned(&apps, "foot").unwrap().name, "Терминал");
+    }
+
+    #[test]
+    fn a_command_with_a_full_path_still_matches() {
+        let apps = vec![app_at("Терминал", "/usr/bin/foot", "/x/foot.desktop")];
+        assert!(resolve_pinned(&apps, "foot").is_some());
+    }
+
+    #[test]
+    fn an_unknown_pinned_entry_resolves_to_nothing() {
+        let apps = vec![app_at("Файлы", "hype-files", "/x/files.desktop")];
+        assert!(resolve_pinned(&apps, "нет-такого").is_none());
+        assert!(resolve_pinned(&apps, "  ").is_none());
     }
 
     #[test]

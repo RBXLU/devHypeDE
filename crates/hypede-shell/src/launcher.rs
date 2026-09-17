@@ -1,4 +1,8 @@
 //! Поиск и запуск приложений.
+//!
+//! Окно устроено как сетка: строка поиска сверху, крупные значки под ней.
+//! Такой вид читается быстрее списка — глаз находит знакомую иконку раньше,
+//! чем успевает прочитать название.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -7,15 +11,19 @@ use gtk4::gdk;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4::{
-    Align, Application, ApplicationWindow, Box as GtkBox, Image, Label, ListBox, ListBoxRow,
+    Align, Application, ApplicationWindow, Box as GtkBox, FlowBox, FlowBoxChild, Image, Label,
     Orientation, ScrolledWindow, SearchEntry, SelectionMode,
 };
 
 use crate::desktop::{find_applications, search, DesktopApp};
 
-/// Сколько совпадений показывать. Длинный список бесполезен: нужное либо в
-/// первых строках, либо запрос стоит уточнить.
-const MAX_RESULTS: usize = 12;
+/// Сколько значков помещается в строку.
+const COLUMNS: u32 = 5;
+/// Сколько совпадений показывать: нужное либо в первых рядах, либо запрос
+/// стоит уточнить.
+const MAX_RESULTS: usize = 30;
+/// Размер значка приложения.
+const ICON_SIZE: i32 = 40;
 
 /// Собирает и показывает окно поиска.
 pub fn build(app: &Application) {
@@ -23,44 +31,59 @@ pub fn build(app: &Application) {
 
     let apps = Rc::new(find_applications(
         &hype_config::paths::application_dirs(),
-        &locale(),
+        &crate::locale(),
     ));
     tracing::info!("найдено приложений: {}", apps.len());
 
     let window = ApplicationWindow::builder()
         .application(app)
-        .title("Запуск приложения")
-        .default_width(620)
-        .default_height(480)
+        .title("Приложения")
+        .default_width(560)
+        .default_height(620)
+        .decorated(false)
         .resizable(false)
         .build();
+    window.add_css_class("hype-shell");
+    window.add_css_class("hype-launcher");
 
     let entry = SearchEntry::new();
-    entry.set_placeholder_text(Some("Название приложения"));
-    entry.set_margin_start(12);
-    entry.set_margin_end(12);
-    entry.set_margin_top(12);
+    entry.add_css_class("hype-search");
+    entry.set_placeholder_text(Some("Поиск приложений"));
+    entry.set_margin_start(16);
+    entry.set_margin_end(16);
+    entry.set_margin_top(16);
 
-    let list = ListBox::new();
-    list.set_selection_mode(SelectionMode::Single);
-    list.add_css_class("navigation-sidebar");
+    let grid = FlowBox::new();
+    grid.set_selection_mode(SelectionMode::Single);
+    grid.set_max_children_per_line(COLUMNS);
+    grid.set_min_children_per_line(COLUMNS);
+    grid.set_homogeneous(true);
+    grid.set_row_spacing(4);
+    grid.set_column_spacing(4);
+    grid.set_margin_start(16);
+    grid.set_margin_end(16);
+    grid.set_valign(Align::Start);
 
     let scroller = ScrolledWindow::builder()
-        .child(&list)
+        .child(&grid)
         .vexpand(true)
-        .margin_start(8)
-        .margin_end(8)
+        .margin_top(16)
         .margin_bottom(8)
         .build();
+
+    let empty = Label::new(Some("Ничего не найдено"));
+    empty.add_css_class("hype-dim");
+    empty.set_visible(false);
 
     let hint = Label::new(Some("Enter — запустить · Esc — закрыть"));
     hint.add_css_class("hype-dim");
     hint.set_halign(Align::Center);
-    hint.set_margin_bottom(8);
+    hint.set_margin_bottom(16);
 
     let layout = GtkBox::new(Orientation::Vertical, 8);
     layout.append(&entry);
     layout.append(&scroller);
+    layout.append(&empty);
     layout.append(&hint);
     window.set_child(Some(&layout));
 
@@ -70,10 +93,11 @@ pub fn build(app: &Application) {
     let refill = {
         let apps = Rc::clone(&apps);
         let visible = Rc::clone(&visible);
-        let list = list.clone();
+        let grid = grid.clone();
+        let empty = empty.clone();
         move |query: &str| {
-            while let Some(child) = list.first_child() {
-                list.remove(&child);
+            while let Some(child) = grid.first_child() {
+                grid.remove(&child);
             }
 
             let found: Vec<DesktopApp> = search(&apps, query)
@@ -83,14 +107,15 @@ pub fn build(app: &Application) {
                 .collect();
 
             for app in &found {
-                list.append(&build_row(app));
+                grid.insert(&build_tile(app), -1);
             }
+            empty.set_visible(found.is_empty());
             *visible.borrow_mut() = found;
 
-            // Первая строка выделена сразу: Enter должен работать без единого
+            // Первый значок выделен сразу: Enter должен работать без единого
             // нажатия стрелки.
-            if let Some(first) = list.row_at_index(0) {
-                list.select_row(Some(&first));
+            if let Some(first) = grid.child_at_index(0) {
+                grid.select_child(&first);
             }
         }
     };
@@ -105,8 +130,8 @@ pub fn build(app: &Application) {
         let visible = Rc::clone(&visible);
         let window = window.clone();
         move |index: Option<usize>| {
-            let visible = visible.borrow();
-            let Some(app) = index.and_then(|index| visible.get(index)) else {
+            let apps = visible.borrow();
+            let Some(app) = index.and_then(|index| apps.get(index)) else {
                 return;
             };
             launch_app(app);
@@ -114,41 +139,46 @@ pub fn build(app: &Application) {
         }
     };
 
-    list.connect_row_activated({
+    grid.connect_child_activated({
         let launch = launch.clone();
-        move |_, row| launch(Some(row.index() as usize))
+        move |_, child| launch(Some(child.index() as usize))
     });
+
+    let selected = {
+        let grid = grid.clone();
+        move || {
+            grid.selected_children()
+                .first()
+                .map(|child| child.index() as usize)
+        }
+    };
 
     entry.connect_activate({
         let launch = launch.clone();
-        let list = list.clone();
-        move |_| launch(list.selected_row().map(|row| row.index() as usize))
+        let selected = selected.clone();
+        move |_| launch(selected())
     });
 
     let controller = gtk4::EventControllerKey::new();
     controller.connect_key_pressed({
         let window = window.clone();
-        let list = list.clone();
+        let grid = grid.clone();
         let launch = launch.clone();
+        let selected = selected.clone();
         move |_, key, _, _| match key {
             gdk::Key::Escape => {
                 window.close();
                 glib::Propagation::Stop
             }
             gdk::Key::Return | gdk::Key::KP_Enter => {
-                launch(list.selected_row().map(|row| row.index() as usize));
+                launch(selected());
                 glib::Propagation::Stop
             }
-            // Стрелки отдаём списку, чтобы выбор ходил по нему, пока курсор
-            // остаётся в поле поиска.
-            gdk::Key::Down => {
-                move_selection(&list, 1);
-                glib::Propagation::Stop
-            }
-            gdk::Key::Up => {
-                move_selection(&list, -1);
-                glib::Propagation::Stop
-            }
+            // Стрелки двигают выбор по сетке, пока курсор остаётся в поиске.
+            gdk::Key::Right => move_selection(&grid, 1),
+            gdk::Key::Left => move_selection(&grid, -1),
+            gdk::Key::Down => move_selection(&grid, COLUMNS as i32),
+            gdk::Key::Up => move_selection(&grid, -(COLUMNS as i32)),
             _ => glib::Propagation::Proceed,
         }
     });
@@ -158,42 +188,47 @@ pub fn build(app: &Application) {
     entry.grab_focus();
 }
 
-fn move_selection(list: &ListBox, delta: i32) {
-    let current = list.selected_row().map(|row| row.index()).unwrap_or(0);
+fn move_selection(grid: &FlowBox, delta: i32) -> glib::Propagation {
+    let current = grid
+        .selected_children()
+        .first()
+        .map(|child| child.index())
+        .unwrap_or(0);
+
     let next = (current + delta).max(0);
-    if let Some(row) = list.row_at_index(next) {
-        list.select_row(Some(&row));
+    if let Some(child) = grid.child_at_index(next) {
+        grid.select_child(&child);
     }
+    glib::Propagation::Stop
 }
 
-fn build_row(app: &DesktopApp) -> ListBoxRow {
-    let row = ListBoxRow::new();
-    let line = GtkBox::new(Orientation::Horizontal, 12);
-    line.set_margin_start(12);
-    line.set_margin_end(12);
-    line.set_margin_top(8);
-    line.set_margin_bottom(8);
+fn build_tile(app: &DesktopApp) -> FlowBoxChild {
+    let tile = GtkBox::new(Orientation::Vertical, 8);
+    tile.set_margin_top(12);
+    tile.set_margin_bottom(12);
 
+    // Круглая подложка под значком: именно она делает сетку узнаваемой.
+    let circle = GtkBox::new(Orientation::Horizontal, 0);
+    circle.add_css_class("hype-icon-circle");
+    circle.set_halign(Align::Center);
     let icon = Image::from_icon_name(&app.icon);
-    icon.set_pixel_size(28);
-    line.append(&icon);
+    icon.set_pixel_size(ICON_SIZE);
+    circle.append(&icon);
+    tile.append(&circle);
 
-    let text = GtkBox::new(Orientation::Vertical, 2);
     let name = Label::new(Some(&app.name));
-    name.set_halign(Align::Start);
-    text.append(&name);
+    name.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+    name.set_max_width_chars(12);
+    name.set_justify(gtk4::Justification::Center);
+    tile.append(&name);
 
+    let child = FlowBoxChild::new();
+    child.add_css_class("hype-app-tile");
+    child.set_child(Some(&tile));
     if !app.comment.is_empty() {
-        let comment = Label::new(Some(&app.comment));
-        comment.set_halign(Align::Start);
-        comment.add_css_class("hype-dim");
-        comment.set_ellipsize(gtk4::pango::EllipsizeMode::End);
-        text.append(&comment);
+        child.set_tooltip_text(Some(&app.comment));
     }
-
-    line.append(&text);
-    row.set_child(Some(&line));
-    row
+    child
 }
 
 /// Запускает приложение.
@@ -218,45 +253,5 @@ fn launch_app(app: &DesktopApp) {
     match command.spawn() {
         Ok(child) => tracing::info!("{} запущено (pid {})", app.name, child.id()),
         Err(err) => tracing::warn!("не удалось запустить {}: {err}", app.name),
-    }
-}
-
-/// Язык интерфейса для выбора локализованных имён в `.desktop`-файлах.
-fn locale() -> String {
-    let raw = std::env::var("LC_ALL")
-        .or_else(|_| std::env::var("LC_MESSAGES"))
-        .or_else(|_| std::env::var("LANG"))
-        .unwrap_or_else(|_| "en".into());
-
-    // `ru_RU.UTF-8` → `ru`: именно так ключ записан в .desktop-файлах.
-    raw.split(['_', '.', '@'])
-        .next()
-        .unwrap_or("en")
-        .to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Переменные окружения общие для процесса, поэтому тест один и он всё
-    /// возвращает на место.
-    #[test]
-    fn locale_is_reduced_to_the_language_code() {
-        let previous = std::env::var_os("LC_ALL");
-
-        std::env::set_var("LC_ALL", "ru_RU.UTF-8");
-        assert_eq!(locale(), "ru");
-
-        std::env::set_var("LC_ALL", "en_GB");
-        assert_eq!(locale(), "en");
-
-        std::env::set_var("LC_ALL", "C");
-        assert_eq!(locale(), "C");
-
-        match previous {
-            Some(value) => std::env::set_var("LC_ALL", value),
-            None => std::env::remove_var("LC_ALL"),
-        }
     }
 }

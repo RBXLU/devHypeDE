@@ -113,6 +113,8 @@ pub struct HypeState {
     pub ipc: Option<IpcServer>,
     /// Состояние бэкенда DRM. `None` во вложенном режиме.
     pub drm: Option<crate::drm::DrmState>,
+    /// Готовые обои под текущий размер экрана.
+    pub wallpaper: Option<crate::wallpaper::Wallpaper>,
     /// Нужна ли перерисовка — выставляется анимациями и изменениями раскладки.
     pub redraw_needed: bool,
 }
@@ -172,6 +174,7 @@ impl HypeState {
             next_window_id: 1,
             ipc: None,
             drm: None,
+            wallpaper: None,
             redraw_needed: true,
         }
     }
@@ -286,6 +289,47 @@ impl HypeState {
         })
     }
 
+    /// Готовит обои под размер экрана.
+    ///
+    /// Пересчёт нужен при смене разрешения, обоев или темы: буфер делается
+    /// ровно по размеру экрана, чтобы на каждом кадре не масштабировать
+    /// картинку заново.
+    pub fn rebuild_wallpaper(&mut self, size: (u32, u32)) {
+        if size.0 == 0 || size.1 == 0 {
+            return;
+        }
+
+        let already_right_size = self
+            .wallpaper
+            .as_ref()
+            .is_some_and(|w| w.width == size.0 as i32 && w.height == size.1 as i32);
+        if already_right_size {
+            return;
+        }
+
+        // Пока пользователь не выбрал своих обоев, берутся встроенные.
+        let path = self
+            .config
+            .wallpaper
+            .path
+            .clone()
+            .or_else(hype_config::paths::default_wallpaper);
+
+        self.wallpaper = Some(crate::wallpaper::prepare(
+            path.as_deref(),
+            self.config.wallpaper.mode,
+            size,
+            self.config.theme.palette().bg,
+        ));
+        self.redraw_needed = true;
+    }
+
+    /// Выбрасывает готовые обои, чтобы они пересобрались заново.
+    pub fn invalidate_wallpaper(&mut self) {
+        self.wallpaper = None;
+        self.redraw_needed = true;
+    }
+
     /// Пересчитывает раскладку и отправляет окнам новые размеры.
     pub fn relayout(&mut self) {
         let area = self.work_area();
@@ -326,13 +370,19 @@ impl HypeState {
                         LAUNCHER_HEIGHT
                     };
 
+                    // Поиск приложений раскрывается из кнопки запуска, то
+                    // есть от левого нижнего угла: так взгляд не перескакивает
+                    // с кнопки на середину экрана.
+                    const LAUNCHER_MARGIN: f64 = 8.0;
+                    let bottom = panel_area
+                        .map(|panel| panel.origin.y)
+                        .unwrap_or(screen.origin.y + screen.size.h);
+
                     special.push((
                         *id,
                         Rect::new(
-                            screen.origin.x + (screen.size.w - width) / 2.0,
-                            // Чуть выше центра: так окно поиска не перекрывает
-                            // то, что пользователь ищет глазами ниже.
-                            screen.origin.y + (screen.size.h - height) / 3.0,
+                            screen.origin.x + LAUNCHER_MARGIN,
+                            (bottom - height - LAUNCHER_MARGIN).max(screen.origin.y),
                             width,
                             height,
                         ),

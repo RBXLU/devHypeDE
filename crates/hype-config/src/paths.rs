@@ -48,6 +48,60 @@ pub fn control_socket() -> Option<PathBuf> {
     Some(PathBuf::from(runtime).join(format!("hypede-{display}.sock")))
 }
 
+/// Каталоги с ресурсами среды — обоями, звуками, значками.
+///
+/// Порядок важен: сначала то, что подложил пользователь, затем установленное
+/// пакетом, и только потом каталог рядом с исходниками. Последний нужен, чтобы
+/// среда работала прямо из сборки, без установки.
+pub fn asset_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Some(custom) = std::env::var_os("HYPEDE_ASSETS_DIR").filter(|v| !v.is_empty()) {
+        dirs.push(PathBuf::from(custom));
+    }
+
+    if let Some(data_home) = std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty()) {
+        dirs.push(PathBuf::from(data_home).join(APP_DIR));
+    } else if let Some(base) = directories::BaseDirs::new() {
+        dirs.push(base.home_dir().join(".local/share").join(APP_DIR));
+    }
+
+    dirs.push(PathBuf::from("/usr/share").join(APP_DIR));
+    dirs.push(PathBuf::from("/usr/local/share").join(APP_DIR));
+
+    // Рядом с исполняемым файлом: target/debug/../../assets в дереве сборки.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            dirs.push(dir.join("assets"));
+            for up in [1, 2, 3] {
+                let mut candidate = dir.to_path_buf();
+                for _ in 0..up {
+                    candidate = match candidate.parent() {
+                        Some(parent) => parent.to_path_buf(),
+                        None => break,
+                    };
+                }
+                dirs.push(candidate.join("assets"));
+            }
+        }
+    }
+
+    dirs
+}
+
+/// Ищет файл ресурса, например `"wallpapers/bay.png"`.
+pub fn find_asset(relative: &str) -> Option<PathBuf> {
+    asset_dirs()
+        .into_iter()
+        .map(|dir| dir.join(relative))
+        .find(|path| path.exists())
+}
+
+/// Обои, которые среда ставит, пока пользователь не выбрал свои.
+pub fn default_wallpaper() -> Option<PathBuf> {
+    find_asset("wallpapers/bay.png")
+}
+
 /// Каталоги, где лежат `.desktop`-файлы приложений, в порядке приоритета.
 pub fn application_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
@@ -130,6 +184,43 @@ mod tests {
             control_socket().unwrap(),
             PathBuf::from("/run/user/1000/hypede-wayland-3.sock")
         );
+    }
+
+    #[test]
+    fn a_custom_asset_directory_wins() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set("HYPEDE_ASSETS_DIR", "/opt/мои-ресурсы");
+        assert_eq!(asset_dirs()[0], PathBuf::from("/opt/мои-ресурсы"));
+    }
+
+    #[test]
+    fn asset_dirs_include_the_system_location() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set("HYPEDE_ASSETS_DIR", "");
+        assert!(asset_dirs().contains(&PathBuf::from("/usr/share/hypede")));
+    }
+
+    #[test]
+    fn a_missing_asset_is_reported_as_missing() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::set("HYPEDE_ASSETS_DIR", "/нет/такого/каталога");
+        assert_eq!(find_asset("wallpapers/нет-таких.png"), None);
+    }
+
+    #[test]
+    fn an_asset_is_found_in_a_custom_directory() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!("hype-assets-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sounds")).unwrap();
+        std::fs::write(dir.join("sounds/тест.wav"), b"x").unwrap();
+
+        let _guard = EnvGuard::set("HYPEDE_ASSETS_DIR", dir.to_str().unwrap());
+        assert_eq!(
+            find_asset("sounds/тест.wav"),
+            Some(dir.join("sounds/тест.wav"))
+        );
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

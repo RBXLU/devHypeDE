@@ -278,7 +278,9 @@ impl Oklab {
         }
     }
 
-    pub fn to_color(self) -> Color {
+    /// Линейный RGB без обрезки. Значения вне 0..1 означают, что цвет не
+    /// изображается в sRGB.
+    fn to_linear_rgb(self) -> (f64, f64, f64) {
         let l_ = self.l + 0.3963377774 * self.a + 0.2158037573 * self.b;
         let m_ = self.l - 0.1055613458 * self.a - 0.0638541728 * self.b;
         let s_ = self.l - 0.0894841775 * self.a - 1.2914855480 * self.b;
@@ -287,11 +289,22 @@ impl Oklab {
         let m = m_ * m_ * m_;
         let s = s_ * s_ * s_;
 
-        let r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
-        let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
-        let b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+        (
+            4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+        )
+    }
 
-        // Результат может выйти за пределы sRGB — обрезаем по компонентам.
+    /// Умещается ли цвет в sRGB.
+    fn is_in_gamut(self) -> bool {
+        let (r, g, b) = self.to_linear_rgb();
+        const SLACK: f64 = 1e-6;
+        [r, g, b].iter().all(|c| *c >= -SLACK && *c <= 1.0 + SLACK)
+    }
+
+    pub fn to_color(self) -> Color {
+        let (r, g, b) = self.to_linear_rgb();
         Color::rgb(
             linear_to_srgb(r).clamp(0.0, 1.0),
             linear_to_srgb(g).clamp(0.0, 1.0),
@@ -334,8 +347,34 @@ impl Oklch {
         }
     }
 
+    /// Ближайший изображаемый цвет с тем же оттенком и светлотой.
+    ///
+    /// Не всякая пара «светлота и насыщенность» существует в sRGB: например,
+    /// ярко-зелёного с высокой насыщенностью при средней светлоте попросту
+    /// нет. Наивное решение — обрезать каналы — меняет оттенок: зелёный
+    /// уезжает в салатовый, и палитра перестаёт соответствовать выбранному
+    /// цвету.
+    ///
+    /// Поэтому насыщенность снижается ровно настолько, чтобы цвет уместился в
+    /// охват, а оттенок и светлота сохраняются. Так же поступает CSS Color 4.
     pub fn to_color(self) -> Color {
-        self.to_oklab().to_color()
+        if self.to_oklab().is_in_gamut() {
+            return self.to_oklab().to_color();
+        }
+
+        // Двоичный поиск по насыщенности: при нулевой насыщенности цвет
+        // изображается всегда, значит решение существует.
+        let (mut lo, mut hi) = (0.0, self.c);
+        for _ in 0..24 {
+            let mid = (lo + hi) / 2.0;
+            if Oklch::new(self.l, mid, self.h).to_oklab().is_in_gamut() {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+
+        Oklch::new(self.l, lo, self.h).to_oklab().to_color()
     }
 }
 
@@ -470,6 +509,41 @@ mod tests {
         assert_eq!(a.mix(b, 0.0).to_hex(), a.to_hex());
         assert!((a.mix(b, 0.5).a - 0.5).abs() < 1e-9);
         assert!((a.mix(b, 1.0).a - 0.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn out_of_gamut_colours_keep_their_hue() {
+        // Насыщенного зелёного при средней светлоте в sRGB не существует.
+        // Цвет обязан потерять насыщенность, но не оттенок.
+        let wanted = Oklch::new(0.5, 0.35, 145.0);
+        let got = wanted.to_color().to_oklch();
+
+        assert!(
+            (got.h - wanted.h).abs() < 1.0,
+            "оттенок уехал на {}°",
+            (got.h - wanted.h).abs()
+        );
+        assert!((got.l - wanted.l).abs() < 0.01, "светлота уехала");
+        assert!(got.c < wanted.c, "насыщенность должна была снизиться");
+    }
+
+    #[test]
+    fn colours_inside_the_gamut_are_left_alone() {
+        let inside = Oklch::new(0.6, 0.1, 250.0);
+        let got = inside.to_color().to_oklch();
+        assert!(
+            (got.c - inside.c).abs() < 0.002,
+            "насыщенность изменилась зря"
+        );
+    }
+
+    #[test]
+    fn gamut_mapping_survives_the_extremes() {
+        // Ни чёрный, ни белый, ни абсурдная насыщенность не должны ронять поиск.
+        for (l, c, h) in [(0.0, 0.4, 30.0), (1.0, 0.4, 200.0), (0.5, 10.0, 90.0)] {
+            let color = Oklch::new(l, c, h).to_color();
+            assert!((0.0..=1.0).contains(&color.r), "{l}/{c}/{h} -> {color}");
+        }
     }
 
     #[test]

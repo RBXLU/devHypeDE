@@ -21,6 +21,7 @@ impl HypeState {
             Action::ToggleMaximized => self.toggle_maximized(),
             Action::ToggleFloating => self.toggle_floating(),
             Action::FocusDirection { direction } => self.focus_direction(*direction),
+            Action::FocusWindow { id } => self.focus_window(*id),
             Action::MoveWindow { direction } => self.move_window(*direction),
             Action::ResizeWindow { direction, delta } => self.resize_window(*direction, *delta),
             Action::Workspace { index } => self.switch_workspace(*index),
@@ -60,6 +61,10 @@ impl HypeState {
         // Запускаемая программа должна попасть именно в наш сеанс, а не в тот,
         // изнутри которого запущен вложенный композитор.
         command.env("WAYLAND_DISPLAY", &self.socket_name);
+        // Тема курсоров передаётся через окружение: так её подхватят и GTK, и
+        // Qt, и приложения, рисующие курсор сами.
+        command.env("XCURSOR_THEME", &self.config.cursor.theme);
+        command.env("XCURSOR_SIZE", self.config.cursor.size.to_string());
 
         match command.spawn() {
             Ok(child) => info!("запущено: {program} (pid {})", child.id()),
@@ -171,6 +176,24 @@ impl HypeState {
             self.redraw_needed = true;
             let focused = self.workspaces.focused();
             self.broadcast(&Event::FocusChanged { id: focused });
+        }
+    }
+
+    /// Переводит фокус на конкретное окно, переходя на его рабочий стол.
+    fn focus_window(&mut self, id: u64) {
+        let Some(workspace) = self.workspaces.workspace_of(id) else {
+            return;
+        };
+
+        if workspace != self.workspaces.active_index() {
+            self.workspaces.activate(workspace);
+            self.broadcast(&Event::WorkspaceChanged { index: workspace });
+        }
+
+        if self.workspaces.focus_window(id) {
+            self.update_keyboard_focus();
+            self.relayout();
+            self.broadcast(&Event::FocusChanged { id: Some(id) });
         }
     }
 
@@ -296,6 +319,9 @@ impl HypeState {
             workspaces.activate(active);
             self.workspaces = workspaces;
         }
+
+        // Цвет фона и сами обои могли измениться — пересоберём.
+        self.invalidate_wallpaper();
 
         if theme_changed {
             if let Err(err) = hype_config::export_theme_css(&self.config) {

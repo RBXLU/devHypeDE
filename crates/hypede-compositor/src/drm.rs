@@ -26,14 +26,12 @@ use smithay::backend::drm::output::{DrmOutput, DrmOutputManager, DrmOutputRender
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent, DrmNode, NodeType};
 use smithay::backend::egl::{EGLDevice, EGLDisplay};
 use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface};
-use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::renderer::multigpu::gbm::GbmGlesBackend;
 use smithay::backend::renderer::multigpu::{GpuManager, MultiRenderer};
 use smithay::backend::session::libseat::LibSeatSession;
 use smithay::backend::session::{Event as SessionEvent, Session};
 use smithay::backend::udev::{primary_gpu, UdevBackend, UdevEvent};
-use smithay::desktop::space::{space_render_elements, SpaceRenderElements};
 use smithay::desktop::utils::OutputPresentationFeedback;
 use smithay::output::{Mode as WlMode, Output, PhysicalProperties};
 use smithay::reexports::calloop::{EventLoop, RegistrationToken};
@@ -126,7 +124,10 @@ impl std::fmt::Debug for DrmState {
 }
 
 /// Поднимает бэкенд DRM/KMS и вешает его на цикл событий.
-pub fn init(event_loop: &mut EventLoop<'static, LoopData>, data: &mut LoopData) -> anyhow::Result<()> {
+pub fn init(
+    event_loop: &mut EventLoop<'static, LoopData>,
+    data: &mut LoopData,
+) -> anyhow::Result<()> {
     let (session, session_notifier) = LibSeatSession::new().map_err(|err| {
         anyhow::anyhow!(
             "не удалось получить доступ к сеансу через libseat: {err}. \
@@ -170,9 +171,8 @@ fn init_input(
     session: LibSeatSession,
     seat_name: &str,
 ) -> anyhow::Result<()> {
-    let mut libinput = Libinput::new_with_udev::<LibinputSessionInterface<LibSeatSession>>(
-        session.into(),
-    );
+    let mut libinput =
+        Libinput::new_with_udev::<LibinputSessionInterface<LibSeatSession>>(session.into());
     libinput
         .udev_assign_seat(seat_name)
         .map_err(|_| anyhow::anyhow!("не удалось привязать устройства ввода к сеансу"))?;
@@ -250,7 +250,7 @@ fn init_udev(
         let Ok(node) = DrmNode::from_dev_id(device_id) else {
             continue;
         };
-        if let Err(err) = device_added(&mut data.state, event_loop, node, &path) {
+        if let Err(err) = device_added(&mut data.state, event_loop, node, path) {
             warn!("видеокарта {node} не подключена: {err}");
         }
     }
@@ -269,7 +269,8 @@ fn init_udev(
             }
             UdevEvent::Changed { device_id } => {
                 if let Ok(node) = DrmNode::from_dev_id(device_id) {
-                    data.state.with_drm(|state, drm| scan_connectors(state, drm, node));
+                    data.state
+                        .with_drm(|state, drm| scan_connectors(state, drm, node));
                 }
             }
             UdevEvent::Removed { device_id } => {
@@ -326,7 +327,8 @@ fn device_added_runtime(
     let token = handle
         .insert_source(notifier, move |event, _, data| match event {
             DrmEvent::VBlank(crtc) => {
-                data.state.with_drm(|state, drm| frame_finished(state, drm, node, crtc));
+                data.state
+                    .with_drm(|state, drm| frame_finished(state, drm, node, crtc));
             }
             DrmEvent::Error(err) => error!("ошибка видеокарты: {err}"),
         })
@@ -487,7 +489,7 @@ fn connector_connected(
 
     let drm_output = match device
         .manager
-        .initialize_output::<_, SpaceRenderElements<DrmRenderer<'_>, WaylandSurfaceRenderElement<DrmRenderer<'_>>>>(
+        .initialize_output::<_, crate::render::Frame<DrmRenderer<'_>>>(
             crtc,
             drm_mode,
             &[connector.handle()],
@@ -628,13 +630,19 @@ fn render_output(state: &mut HypeState, drm: &mut DrmState, node: DrmNode, crtc:
         }
     };
 
-    let elements = match space_render_elements(&mut renderer, [&state.space], &surface.output, 1.0) {
-        Ok(elements) => elements,
-        Err(err) => {
-            warn!("не удалось собрать кадр: {err}");
-            return;
-        }
-    };
+    let mode_size = surface
+        .output
+        .current_mode()
+        .map(|mode| (mode.size.w.max(0) as u32, mode.size.h.max(0) as u32))
+        .unwrap_or((0, 0));
+    state.rebuild_wallpaper(mode_size);
+
+    let elements = crate::render::output_elements(
+        &mut renderer,
+        &state.space,
+        &surface.output,
+        state.wallpaper.as_ref(),
+    );
 
     let clear = crate::winit::clear_color(&state.config.theme.palette().bg);
 

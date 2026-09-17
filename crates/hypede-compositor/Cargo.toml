@@ -1,7 +1,30 @@
 [package]
 name = "hypede-compositor"
+description = "The HypeDE Wayland compositor"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "hypede-comp"
+path = "src/main.rs"
+
+[lib]
+name = "hypede_compositor"
+path = "src/lib.rs"
 
 [dependencies]
+hype-anim = { workspace = true }
+hype-config = { workspace = true }
+hype-ipc = { workspace = true }
+hype-theme = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dependencies.smithay]
+version = "0.7"
+default-features = false
+features = ["backend_winit", "wayland_frontend", "desktop", "renderer_gl"]

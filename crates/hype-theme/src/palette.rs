@@ -56,8 +56,6 @@ struct Levels {
     border: f64,
     /// Целевая светлота акцента, когда он работает текстом.
     accent_text: f64,
-    /// Целевая светлота акцента, когда он работает фоном.
-    accent_fill: f64,
 }
 
 impl Levels {
@@ -71,7 +69,6 @@ impl Levels {
         fg_disabled: 0.520,
         border: 0.380,
         accent_text: 0.800,
-        accent_fill: 0.620,
     };
 
     const LIGHT: Levels = Levels {
@@ -84,7 +81,6 @@ impl Levels {
         fg_disabled: 0.660,
         border: 0.870,
         accent_text: 0.500,
-        accent_fill: 0.600,
     };
 
     fn for_variant(variant: Variant) -> &'static Levels {
@@ -95,10 +91,22 @@ impl Levels {
     }
 }
 
-/// Оттенки семантических цветов в градусах OKLCH.
-const HUE_SUCCESS: f64 = 145.0;
-const HUE_WARNING: f64 = 85.0;
-const HUE_ERROR: f64 = 27.0;
+/// Границы светлоты для акцента в роли заливки.
+///
+/// Сам акцент не переводится к единой светлоте: это превратило бы жёлтый в
+/// оливковый, а голубой — в синий, то есть отняло бы у пользователя ровно тот
+/// цвет, который он выбрал. Границы нужны лишь для крайностей: почти чёрная
+/// или почти белая кнопка одинаково непригодна.
+const FILL_L_MIN: f64 = 0.45;
+const FILL_L_MAX: f64 = 0.82;
+
+/// Семантические цвета: оттенок и светлота заливки в OKLCH.
+///
+/// Светлота у каждого своя, по той же причине: предупреждение обязано
+/// оставаться жёлтым, а ошибка — красной.
+const SEMANTIC_SUCCESS: (f64, f64) = (145.0, 0.58);
+const SEMANTIC_WARNING: (f64, f64) = (85.0, 0.80);
+const SEMANTIC_ERROR: (f64, f64) = (27.0, 0.55);
 
 /// Готовый набор цветов интерфейса.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -133,20 +141,28 @@ pub struct Palette {
 
     pub success: Color,
     pub success_bg: Color,
+    /// Текст поверх `success_bg`.
+    pub on_success: Color,
+
     pub warning: Color,
     pub warning_bg: Color,
+    /// Текст поверх `warning_bg`.
+    pub on_warning: Color,
+
     pub error: Color,
     pub error_bg: Color,
-    /// Текст поверх любого из семантических фонов.
-    pub on_semantic: Color,
+    /// Текст поверх `error_bg`.
+    pub on_error: Color,
 }
 
 impl Palette {
     /// Строит палитру из акцентного цвета и схемы.
     pub fn from_accent(accent: Color, variant: Variant) -> Self {
         let levels = Levels::for_variant(variant);
-        let hue = accent.to_oklch().h;
-        let accent_chroma = accent.to_oklch().c;
+        let source = accent.to_oklch();
+        let hue = source.h;
+        let accent_chroma = source.c;
+        let source_lightness = source.l;
 
         let neutral = |l: f64| Oklch::new(l, NEUTRAL_CHROMA, hue).to_color();
 
@@ -168,19 +184,25 @@ impl Palette {
         let accent_text = Oklch::new(levels.accent_text, accent_chroma, hue).to_color();
         let accent = ensure_contrast(accent_text, worst_bg, CONTRAST_UI);
 
-        let accent_bg = Oklch::new(levels.accent_fill, accent_chroma, hue).to_color();
+        // Заливка — это выбранный пользователем цвет, а не приведённый к общей
+        // светлоте: он должен остаться узнаваемым.
+        let fill_l = source_lightness.clamp(FILL_L_MIN, FILL_L_MAX);
+        let accent_bg = Oklch::new(fill_l, accent_chroma, hue).to_color();
         let on_accent = accent_bg.best_foreground();
 
-        let semantic = |hue: f64| -> (Color, Color) {
+        let semantic = |(hue, fill_l): (f64, f64)| -> (Color, Color, Color) {
             let text = Oklch::new(levels.accent_text, 0.13, hue).to_color();
-            let fill = Oklch::new(levels.accent_fill, 0.15, hue).to_color();
-            (ensure_contrast(text, worst_bg, CONTRAST_UI), fill)
+            let fill = Oklch::new(fill_l, 0.15, hue).to_color();
+            (
+                ensure_contrast(text, worst_bg, CONTRAST_UI),
+                fill,
+                fill.best_foreground(),
+            )
         };
 
-        let (success, success_bg) = semantic(HUE_SUCCESS);
-        let (warning, warning_bg) = semantic(HUE_WARNING);
-        let (error, error_bg) = semantic(HUE_ERROR);
-        let on_semantic = error_bg.best_foreground();
+        let (success, success_bg, on_success) = semantic(SEMANTIC_SUCCESS);
+        let (warning, warning_bg, on_warning) = semantic(SEMANTIC_WARNING);
+        let (error, error_bg, on_error) = semantic(SEMANTIC_ERROR);
 
         // Тень в светлой теме мягче: на белом фоне чёрная тень выглядит грязью.
         let shadow = Color::BLACK.with_alpha(if variant.is_dark() { 0.55 } else { 0.18 });
@@ -200,11 +222,13 @@ impl Palette {
             on_accent,
             success,
             success_bg,
+            on_success,
             warning,
             warning_bg,
+            on_warning,
             error,
             error_bg,
-            on_semantic,
+            on_error,
         }
     }
 
@@ -221,7 +245,7 @@ impl Palette {
             ("второстепенный текст", self.fg_dim, self.bg, CONTRAST_UI),
             ("акцент на фоне окна", self.accent, self.bg, CONTRAST_UI),
             ("текст на кнопке", self.on_accent, self.accent_bg, CONTRAST_TEXT),
-            ("текст на ошибке", self.on_semantic, self.error_bg, CONTRAST_TEXT),
+            ("текст на ошибке", self.on_error, self.error_bg, CONTRAST_TEXT),
         ];
 
         checks
@@ -326,6 +350,52 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_saturated_accent_gets_white_text_and_a_yellow_one_gets_black() {
+        // Выбор делается по контрасту, но результат — часть облика среды,
+        // поэтому закреплён тестом.
+        for variant in [Variant::Dark, Variant::Light] {
+            let purple = Palette::from_accent(Color::from_hex("#7c3aed").unwrap(), variant);
+            assert_eq!(purple.on_accent, Color::WHITE, "{variant:?}");
+
+            let yellow = Palette::from_accent(Color::from_hex("#f6d32d").unwrap(), variant);
+            assert_eq!(yellow.on_accent, Color::BLACK, "{variant:?}");
+        }
+    }
+
+    #[test]
+    fn the_accent_keeps_its_own_lightness() {
+        // Жёлтая кнопка обязана остаться жёлтой, а не стать оливковой.
+        let yellow = Color::from_hex("#f6d32d").unwrap();
+        let palette = Palette::from_accent(yellow, Variant::Dark);
+        let fill = palette.accent_bg.to_oklch();
+        assert!(fill.l > 0.75, "жёлтый потемнел до {}", fill.l);
+        assert!((fill.h - yellow.to_oklch().h).abs() < 1.0);
+    }
+
+    #[test]
+    fn an_extreme_accent_is_pulled_into_a_usable_range() {
+        for hex in ["#050505", "#fdfdfd"] {
+            let palette = Palette::from_accent(Color::from_hex(hex).unwrap(), Variant::Dark);
+            let l = palette.accent_bg.to_oklch().l;
+            // Допуск на округление при переходе через sRGB.
+            assert!(
+                l >= FILL_L_MIN - 1e-6 && l <= FILL_L_MAX + 1e-6,
+                "{hex} дал непригодную заливку со светлотой {l}"
+            );
+        }
+    }
+
+    #[test]
+    fn warning_stays_yellow_and_error_stays_red() {
+        let palette = Palette::from_accent(Color::from_hex("#7c3aed").unwrap(), Variant::Dark);
+        assert!((palette.warning_bg.to_oklch().h - SEMANTIC_WARNING.0).abs() < 1.0);
+        assert!(palette.warning_bg.to_oklch().l > 0.7, "предупреждение потускнело");
+        assert!((palette.error_bg.to_oklch().h - SEMANTIC_ERROR.0).abs() < 1.0);
+        assert_eq!(palette.on_warning, Color::BLACK);
+        assert_eq!(palette.on_error, Color::WHITE);
     }
 
     #[test]

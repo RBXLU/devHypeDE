@@ -109,6 +109,14 @@ pub enum Key {
 }
 
 impl Key {
+    /// Разбирает имя клавиши в том виде, в каком его отдаёт xkb.
+    ///
+    /// Нужна композитору: он получает от xkb строку вроде `"q"`, `"Return"`
+    /// или `"XF86AudioMute"` и должен сопоставить её с привязками из конфига.
+    pub fn from_name(name: &str) -> Result<Self, ShortcutParseError> {
+        parse_key(name)
+    }
+
     /// Имя клавиши в терминах xkb — то, что понимает композитор.
     pub fn xkb_name(&self) -> String {
         match self {
@@ -310,6 +318,20 @@ mod tests {
             "shift+super+q".parse::<Shortcut>().unwrap().to_string(),
             "Super+Shift+Q"
         );
+    }
+
+    #[test]
+    fn key_names_from_xkb_are_understood() {
+        // Ровно те строки, которые приходят от xkb_keysym_get_name.
+        assert_eq!(Key::from_name("q").unwrap(), Key::Char('q'));
+        assert_eq!(Key::from_name("Q").unwrap(), Key::Char('q'));
+        assert_eq!(Key::from_name("space").unwrap(), Key::Named("Space".into()));
+        assert_eq!(Key::from_name("Return").unwrap(), Key::Named("Return".into()));
+        assert_eq!(
+            Key::from_name("XF86AudioMute").unwrap(),
+            Key::Named("XF86AudioMute".into())
+        );
+        assert!(Key::from_name("NoSymbol").is_err());
     }
 
     #[test]

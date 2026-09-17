@@ -238,6 +238,15 @@ impl Connection {
     pub fn subscribe(&mut self, events: Vec<EventKind>) {
         self.subscriptions = events;
     }
+
+    /// Отдаёт копию потока для отправки событий из другого места.
+    ///
+    /// Нужна композитору: соединение читается в одном потоке, а события в него
+    /// шлёт другой. Дубликат дескриптора указывает на тот же сокет, поэтому
+    /// закрытие клиентом увидят оба.
+    pub fn take_stream(&self) -> Option<UnixStream> {
+        self.writer.try_clone().ok()
+    }
 }
 
 #[cfg(test)]
@@ -412,6 +421,26 @@ mod tests {
         let _first = Listener::bind(&path).unwrap();
         let err = Listener::bind(&path).unwrap_err();
         assert!(err.to_string().contains("уже работает"), "{err}");
+    }
+
+    #[test]
+    fn a_cloned_stream_writes_to_the_same_client() {
+        let path = socket_path("clone");
+        let listener = Listener::bind(&path).unwrap();
+
+        let server = std::thread::spawn(move || {
+            let mut connection = listener.accept().unwrap();
+            let _ = connection.read_request().unwrap();
+            let mut stream = connection.take_stream().unwrap();
+            write_message(&mut stream, &Outgoing::Event(Event::ThemeChanged)).unwrap();
+        });
+
+        let mut client = Client::connect(&path).unwrap();
+        write_message(&mut client.writer, &Request::Ping).unwrap();
+        let message: Outgoing = read_message(&mut client.reader).unwrap().unwrap();
+        assert_eq!(message, Outgoing::Event(Event::ThemeChanged));
+
+        server.join().unwrap();
     }
 
     #[test]

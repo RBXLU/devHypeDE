@@ -185,16 +185,16 @@ impl Theme {
         define("accent_fg_color", p.on_accent);
         define("destructive_color", p.error);
         define("destructive_bg_color", p.error_bg);
-        define("destructive_fg_color", p.on_semantic);
+        define("destructive_fg_color", p.on_error);
         define("success_color", p.success);
         define("success_bg_color", p.success_bg);
-        define("success_fg_color", p.on_semantic);
+        define("success_fg_color", p.on_success);
         define("warning_color", p.warning);
         define("warning_bg_color", p.warning_bg);
-        define("warning_fg_color", p.on_semantic);
+        define("warning_fg_color", p.on_warning);
         define("error_color", p.error);
         define("error_bg_color", p.error_bg);
-        define("error_fg_color", p.on_semantic);
+        define("error_fg_color", p.on_error);
 
         define("window_bg_color", p.bg);
         define("window_fg_color", p.fg);

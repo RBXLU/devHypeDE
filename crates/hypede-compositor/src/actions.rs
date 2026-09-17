@@ -11,6 +11,30 @@ use tracing::{info, warn};
 
 use crate::state::HypeState;
 
+/// Собирает `PATH` для запускаемых программ.
+///
+/// В начало добавляется каталог самого композитора. Без этого при запуске из
+/// дерева сборки не находятся ни полка, ни файловый менеджер, ни настройки:
+/// они лежат рядом с `hypede-comp`, но не в системных каталогах. После
+/// установки пакетом это ничего не меняет — каталог и так `/usr/bin`.
+fn child_path(current_exe: Option<&std::path::Path>) -> std::ffi::OsString {
+    let inherited = std::env::var_os("PATH").unwrap_or_default();
+
+    let Some(directory) = current_exe.and_then(|exe| exe.parent()) else {
+        return inherited;
+    };
+
+    let already_listed = std::env::split_paths(&inherited).any(|entry| entry == directory);
+    if already_listed {
+        return inherited;
+    }
+
+    let mut entries = vec![directory.to_path_buf()];
+    entries.extend(std::env::split_paths(&inherited));
+
+    std::env::join_paths(entries).unwrap_or(inherited)
+}
+
 impl HypeState {
     /// Выполняет действие среды.
     pub fn dispatch(&mut self, action: &Action) {
@@ -65,6 +89,7 @@ impl HypeState {
         // Qt, и приложения, рисующие курсор сами.
         command.env("XCURSOR_THEME", &self.config.cursor.theme);
         command.env("XCURSOR_SIZE", self.config.cursor.size.to_string());
+        command.env("PATH", child_path(std::env::current_exe().ok().as_deref()));
 
         match command.spawn() {
             Ok(child) => info!("запущено: {program} (pid {})", child.id()),
@@ -355,5 +380,67 @@ impl HypeState {
         if let Some(window) = self.window_info(id) {
             self.broadcast(&Event::WindowChanged { window });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    /// PATH — общее состояние процесса, поэтому проверки идут под одним замком.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn entries(value: &std::ffi::OsString) -> Vec<PathBuf> {
+        std::env::split_paths(value).collect()
+    }
+
+    #[test]
+    fn the_compositor_directory_comes_first() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var("PATH", "/usr/bin:/bin");
+
+        let path = child_path(Some(Path::new(
+            "/home/user/devHypeDE/target/release/hypede-comp",
+        )));
+        let entries = entries(&path);
+
+        assert_eq!(
+            entries[0],
+            PathBuf::from("/home/user/devHypeDE/target/release")
+        );
+        assert!(
+            entries.contains(&PathBuf::from("/usr/bin")),
+            "системные пути потерялись"
+        );
+    }
+
+    #[test]
+    fn an_already_listed_directory_is_not_duplicated() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var("PATH", "/usr/bin:/bin");
+
+        let path = child_path(Some(Path::new("/usr/bin/hypede-comp")));
+        assert_eq!(
+            entries(&path),
+            vec![PathBuf::from("/usr/bin"), PathBuf::from("/bin")]
+        );
+    }
+
+    #[test]
+    fn without_a_known_location_the_path_is_left_alone() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var("PATH", "/usr/bin:/bin");
+
+        assert_eq!(child_path(None), std::ffi::OsString::from("/usr/bin:/bin"));
+    }
+
+    #[test]
+    fn an_empty_path_still_gets_the_compositor_directory() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("PATH");
+
+        let path = child_path(Some(Path::new("/opt/hypede/hypede-comp")));
+        assert_eq!(entries(&path)[0], PathBuf::from("/opt/hypede"));
     }
 }

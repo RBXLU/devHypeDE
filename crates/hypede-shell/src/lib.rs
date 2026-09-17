@@ -2,6 +2,8 @@
 
 #![deny(rust_2018_idioms)]
 
+use std::path::Path;
+
 pub mod desktop;
 pub mod launcher;
 pub mod panel;
@@ -15,6 +17,33 @@ pub const PANEL_APP_ID: &str = "dev.hypede.Shell";
 
 /// Идентификатор окна поиска приложений.
 pub const LAUNCHER_APP_ID: &str = "dev.hypede.Launcher";
+
+/// Готовит запуск программы среды.
+///
+/// В начало `PATH` добавляется каталог самой оболочки: при запуске из дерева
+/// сборки соседние программы лежат рядом, а не в системных каталогах. После
+/// установки пакетом это ничего не меняет.
+pub fn command(program: &str) -> std::process::Command {
+    let mut command = std::process::Command::new(program);
+
+    if let Some(directory) = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf))
+    {
+        let inherited = std::env::var_os("PATH").unwrap_or_default();
+        let already_listed = std::env::split_paths(&inherited).any(|entry| entry == directory);
+
+        if !already_listed {
+            let mut entries = vec![directory];
+            entries.extend(std::env::split_paths(&inherited));
+            if let Ok(path) = std::env::join_paths(entries) {
+                command.env("PATH", path);
+            }
+        }
+    }
+
+    command
+}
 
 /// Язык интерфейса для выбора локализованных имён в `.desktop`-файлах.
 fn locale() -> String {

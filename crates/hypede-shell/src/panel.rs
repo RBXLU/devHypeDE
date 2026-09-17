@@ -272,7 +272,9 @@ fn build_account_row(config: &Config) -> GtkBox {
 
     let settings = round_button("preferences-system-symbolic", "Параметры");
     settings.connect_clicked(|_| {
-        let _ = std::process::Command::new("hype-settings").spawn();
+        if let Err(err) = crate::command("hype-settings").spawn() {
+            tracing::warn!("не удалось открыть параметры: {err}");
+        }
     });
     row.append(&settings);
 

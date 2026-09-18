@@ -28,8 +28,13 @@ impl SeatHandler for HypeState {
     fn cursor_image(
         &mut self,
         _seat: &Seat<Self>,
-        _image: smithay::input::pointer::CursorImageStatus,
+        image: smithay::input::pointer::CursorImageStatus,
     ) {
+        // Клиент вправе подменить указатель своим рисунком — например,
+        // крестиком над холстом. Композитор запоминает просьбу и учитывает её
+        // при сборке следующего кадра.
+        self.cursor_status = image;
+        self.redraw_needed = true;
     }
 
     fn focus_changed(&mut self, seat: &Seat<Self>, focused: Option<&WlSurface>) {

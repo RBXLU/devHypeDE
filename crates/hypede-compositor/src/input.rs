@@ -5,10 +5,11 @@ use hype_ipc::Event;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event as BackendEvent, InputBackend,
     InputEvent, KeyState, KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent,
+    PointerMotionEvent,
 };
 use smithay::input::keyboard::{xkb, FilterResult, ModifiersState};
 use smithay::input::pointer::{AxisFrame, ButtonEvent, MotionEvent};
-use smithay::utils::SERIAL_COUNTER;
+use smithay::utils::{Logical, Point, SERIAL_COUNTER};
 
 use crate::state::HypeState;
 
@@ -57,6 +58,7 @@ impl HypeState {
     pub fn process_input_event<I: InputBackend>(&mut self, event: InputEvent<I>) {
         match event {
             InputEvent::Keyboard { event, .. } => self.on_keyboard::<I>(event),
+            InputEvent::PointerMotion { event, .. } => self.on_pointer_relative::<I>(event),
             InputEvent::PointerMotionAbsolute { event, .. } => self.on_pointer_absolute::<I>(event),
             InputEvent::PointerButton { event, .. } => self.on_pointer_button::<I>(event),
             InputEvent::PointerAxis { event, .. } => self.on_pointer_axis::<I>(event),
@@ -148,6 +150,16 @@ impl HypeState {
         }
     }
 
+    /// Мышь и тачпад: сдвиг относительно прежнего места.
+    ///
+    /// Именно такие события приходят от настоящего оборудования, поэтому без
+    /// этой ветки указатель в сеансе на видеокарте стоял бы на месте.
+    fn on_pointer_relative<I: InputBackend>(&mut self, event: I::PointerMotionEvent) {
+        let position = self.clamp_to_screen(self.pointer_location + event.delta());
+        self.move_pointer(position, event.time_msec());
+    }
+
+    /// Планшет и вложенный режим: указатель сразу назван точкой на экране.
     fn on_pointer_absolute<I: InputBackend>(&mut self, event: I::PointerMotionAbsoluteEvent) {
         let Some(output) = self.space.outputs().next().cloned() else {
             return;
@@ -157,6 +169,11 @@ impl HypeState {
         };
 
         let position = event.position_transformed(geometry.size) + geometry.loc.to_f64();
+        self.move_pointer(position, event.time_msec());
+    }
+
+    /// Переносит указатель и сообщает об этом клиентам.
+    fn move_pointer(&mut self, position: Point<f64, Logical>, time: u32) {
         let serial = SERIAL_COUNTER.next_serial();
         let under = self.surface_under(position);
 
@@ -169,14 +186,24 @@ impl HypeState {
             &MotionEvent {
                 location: position,
                 serial,
-                time: event.time_msec(),
+                time,
             },
         );
         pointer.frame(self);
 
+        // Указатель рисует сам композитор, поэтому его новое место нужно
+        // запомнить и перерисовать кадр.
+        self.pointer_location = position;
+        self.redraw_needed = true;
+
         if self.config.input.focus_follows_mouse {
             self.focus_window_under_pointer(position);
         }
+    }
+
+    /// Не даёт указателю уйти за край экрана.
+    fn clamp_to_screen(&self, position: Point<f64, Logical>) -> Point<f64, Logical> {
+        clamp_to(position, self.screen_area())
     }
 
     fn on_pointer_button<I: InputBackend>(&mut self, event: I::PointerButtonEvent) {
@@ -277,6 +304,21 @@ impl HypeState {
     }
 }
 
+/// Прижимает точку к прямоугольнику экрана.
+///
+/// Правый и нижний край берутся на пиксель внутрь: ровно на границе указатель
+/// уже считался бы за пределами монитора, и окно под ним не нашлось бы.
+fn clamp_to(position: Point<f64, Logical>, screen: hype_anim::Rect) -> Point<f64, Logical> {
+    let x = position
+        .x
+        .clamp(screen.origin.x, screen.origin.x + screen.size.w - 1.0);
+    let y = position
+        .y
+        .clamp(screen.origin.y, screen.origin.y + screen.size.h - 1.0);
+
+    (x, y).into()
+}
+
 /// Собирает сочетание клавиш из состояния модификаторов и имени клавиши.
 ///
 /// Возвращает `None`, если клавиша не имеет осмысленного имени (например,
@@ -297,6 +339,41 @@ fn shortcut_from(modifiers: &ModifiersState, key_name: &str) -> Option<Shortcut>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Экран 1280×800 в начале координат.
+    fn screen() -> hype_anim::Rect {
+        hype_anim::Rect::new(0.0, 0.0, 1280.0, 800.0)
+    }
+
+    #[test]
+    fn a_pointer_inside_the_screen_stays_where_it_is() {
+        let point = clamp_to((640.0, 400.0).into(), screen());
+        assert_eq!(point.x, 640.0);
+        assert_eq!(point.y, 400.0);
+    }
+
+    #[test]
+    fn a_pointer_pushed_off_the_screen_comes_back_to_the_edge() {
+        let point = clamp_to((5000.0, -30.0).into(), screen());
+        assert_eq!(point.x, 1279.0, "указатель ушёл за правый край");
+        assert_eq!(point.y, 0.0, "указатель ушёл выше экрана");
+    }
+
+    #[test]
+    fn the_bottom_edge_stays_inside_the_screen() {
+        let point = clamp_to((0.0, 100_000.0).into(), screen());
+        assert!(point.y < 800.0, "нижний край должен быть внутри экрана");
+    }
+
+    #[test]
+    fn a_screen_not_at_the_origin_moves_the_bounds_with_it() {
+        let right = hype_anim::Rect::new(1280.0, 0.0, 1280.0, 800.0);
+        let point = clamp_to((0.0, 0.0).into(), right);
+        assert_eq!(
+            point.x, 1280.0,
+            "указатель должен остаться на своём мониторе"
+        );
+    }
 
     fn modifiers(logo: bool, ctrl: bool, alt: bool, shift: bool) -> ModifiersState {
         ModifiersState {

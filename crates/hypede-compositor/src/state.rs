@@ -115,6 +115,13 @@ pub struct HypeState {
     pub drm: Option<crate::drm::DrmState>,
     /// Готовые обои под текущий размер экрана.
     pub wallpaper: Option<crate::wallpaper::Wallpaper>,
+
+    /// Указатель мыши: его рисует сам композитор.
+    pub cursor: crate::cursor::Cursor,
+    /// Что сейчас показывать вместо стрелки, если клиент об этом попросил.
+    pub cursor_status: smithay::input::pointer::CursorImageStatus,
+    /// Где находится указатель в логических точках экрана.
+    pub pointer_location: Point<f64, Logical>,
     /// Нужна ли перерисовка — выставляется анимациями и изменениями раскладки.
     pub redraw_needed: bool,
 }
@@ -151,6 +158,7 @@ impl HypeState {
 
         let socket_name = Self::init_wayland_listener(display, event_loop);
         let workspaces = Workspaces::new(config.layout.workspaces);
+        let cursor = crate::cursor::Cursor::load(&config.cursor.theme, config.cursor.size);
 
         Self {
             start_time: Instant::now(),
@@ -175,6 +183,9 @@ impl HypeState {
             ipc: None,
             drm: None,
             wallpaper: None,
+            cursor,
+            cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
+            pointer_location: (0.0, 0.0).into(),
             redraw_needed: true,
         }
     }
@@ -210,6 +221,20 @@ impl HypeState {
             .expect("не удалось добавить дисплей в цикл событий");
 
         socket_name
+    }
+
+    /// Ставит указатель в середину экрана.
+    ///
+    /// Сеанс начинается без единого события мыши, и стрелка иначе пряталась бы
+    /// в самом углу — там её легко не заметить.
+    pub fn center_pointer(&mut self) {
+        let screen = self.screen_area();
+        self.pointer_location = (
+            screen.origin.x + screen.size.w / 2.0,
+            screen.origin.y + screen.size.h / 2.0,
+        )
+            .into();
+        self.redraw_needed = true;
     }
 
     /// Выдаёт следующий идентификатор окна.

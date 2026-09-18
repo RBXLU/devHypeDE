@@ -39,7 +39,7 @@ use smithay::reexports::drm::control::{connector, crtc, ModeTypeFlags};
 use smithay::reexports::input::Libinput;
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::reexports::wayland_server::backend::GlobalId;
-use smithay::utils::DeviceFd;
+use smithay::utils::{DeviceFd, Scale};
 use smithay_drm_extras::drm_scanner::{DrmScanEvent, DrmScanner};
 use tracing::{error, info, warn};
 
@@ -475,6 +475,7 @@ fn connector_connected(
     output.set_preferred(wl_mode);
     output.change_current_state(Some(wl_mode), None, None, Some(position.into()));
     state.space.map_output(&output, position);
+    state.center_pointer();
 
     let render_node = device.render_node.unwrap_or(primary_gpu);
     let mut renderer = match drm.gpus.single_renderer(&render_node) {
@@ -637,11 +638,21 @@ fn render_output(state: &mut HypeState, drm: &mut DrmState, node: DrmNode, crtc:
         .unwrap_or((0, 0));
     state.rebuild_wallpaper(mode_size);
 
+    let scale = Scale::from(surface.output.current_scale().fractional_scale());
+    let cursor = state.cursor.render(
+        &mut renderer,
+        &state.cursor_status,
+        state.pointer_location,
+        scale,
+        state.start_time.elapsed(),
+    );
+
     let elements = crate::render::output_elements(
         &mut renderer,
         &state.space,
         &surface.output,
         state.wallpaper.as_ref(),
+        cursor,
     );
 
     let clear = crate::winit::clear_color(&state.config.theme.palette().bg);

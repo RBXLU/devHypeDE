@@ -13,7 +13,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::winit::{self, WinitEvent};
 use smithay::output::{Mode, Output, PhysicalProperties, Subpixel};
 use smithay::reexports::calloop::EventLoop;
-use smithay::utils::{Rectangle, Transform};
+use smithay::utils::{Rectangle, Scale, Transform};
 
 use crate::state::{HypeState, LoopData};
 
@@ -27,6 +27,10 @@ pub fn init(
 ) -> anyhow::Result<()> {
     let (mut backend, winit_source) = winit::init::<GlesRenderer>()
         .map_err(|err| anyhow::anyhow!("не удалось открыть окно композитора: {err}"))?;
+
+    // Указатель во вложенном режиме рисует сам композитор — иначе поверх
+    // нашей стрелки была бы ещё и хозяйская.
+    backend.window().set_cursor_visible(false);
 
     let mode = Mode {
         size: backend.window_size(),
@@ -53,6 +57,7 @@ pub fn init(
     output.set_preferred(mode);
 
     data.state.space.map_output(&output, (0, 0));
+    data.state.center_pointer();
     data.state.relayout();
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
@@ -98,11 +103,21 @@ pub fn init(
                             }
                         };
 
+                        let scale = Scale::from(output.current_scale().fractional_scale());
+                        let cursor = state.cursor.render(
+                            renderer,
+                            &state.cursor_status,
+                            state.pointer_location,
+                            scale,
+                            state.start_time.elapsed(),
+                        );
+
                         let elements = crate::render::output_elements(
                             renderer,
                             &state.space,
                             &output,
                             state.wallpaper.as_ref(),
+                            cursor,
                         );
 
                         if let Err(err) = damage_tracker.render_output(

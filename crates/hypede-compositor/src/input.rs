@@ -12,6 +12,46 @@ use smithay::utils::SERIAL_COUNTER;
 
 use crate::state::HypeState;
 
+/// Первый код клавиши переключения виртуальной консоли (`XF86Switch_VT_1`).
+///
+/// Ctrl+Alt+F1…F12 приходят от xkb именно такими кодами, идущими подряд.
+const VT_SWITCH_FIRST: u32 = 0x1008_FE01;
+/// Сколько таких клавиш определено.
+const VT_SWITCH_COUNT: u32 = 12;
+
+/// Номер консоли, на которую просят переключиться.
+///
+/// Обрабатывать это обязан композитор: он держит видеокарту и клавиатуру, и
+/// без его участия уйти с сеанса нечем — ни одно приложение такую клавишу не
+/// перехватит.
+fn vt_from_keysym(raw: u32) -> Option<i32> {
+    (VT_SWITCH_FIRST..VT_SWITCH_FIRST + VT_SWITCH_COUNT)
+        .contains(&raw)
+        .then(|| (raw - VT_SWITCH_FIRST + 1) as i32)
+}
+
+/// Код клавиши Backspace в xkb.
+const KEYSYM_BACKSPACE: u32 = 0xFF08;
+
+/// Аварийный выход из сеанса — Ctrl+Alt+Backspace.
+///
+/// Проверяется до настроек и не может быть из них убран. Своя привязка для
+/// выхода в конфиге есть, но пользователь волен заменить весь набор привязок
+/// целиком, и тогда без этой лазейки из сеанса не выйти вообще.
+fn is_emergency_exit(modifiers: &ModifiersState, raw: u32) -> bool {
+    modifiers.ctrl && modifiers.alt && raw == KEYSYM_BACKSPACE
+}
+
+/// Что делать с нажатой клавишей.
+enum KeyAction {
+    /// Выполнить действие среды из настроек.
+    Bound(hype_config::Action),
+    /// Переключиться на другую виртуальную консоль.
+    SwitchVt(i32),
+    /// Завершить сеанс, что бы ни было в настройках.
+    EmergencyExit,
+}
+
 impl HypeState {
     /// Разбирает событие ввода от бэкенда.
     pub fn process_input_event<I: InputBackend>(&mut self, event: InputEvent<I>) {
@@ -49,6 +89,18 @@ impl HypeState {
                     return FilterResult::Forward;
                 }
 
+                // Переключение консоли проверяется до всего остального и по
+                // текущему символу: это единственный способ уйти из сеанса,
+                // и он обязан работать, что бы ни было в настройках.
+                for sym in handle.raw_syms() {
+                    if let Some(vt) = vt_from_keysym(sym.raw()) {
+                        return FilterResult::Intercept(KeyAction::SwitchVt(vt));
+                    }
+                    if is_emergency_exit(modifiers, sym.raw()) {
+                        return FilterResult::Intercept(KeyAction::EmergencyExit);
+                    }
+                }
+
                 // Берётся латинский символ клавиши, а не набранный: привязка
                 // Super+Q обязана работать и в кириллической раскладке.
                 let sym = handle
@@ -60,14 +112,39 @@ impl HypeState {
                 };
 
                 match bindings.iter().find(|b| b.keys == shortcut) {
-                    Some(binding) => FilterResult::Intercept(binding.action.clone()),
+                    Some(binding) => {
+                        FilterResult::Intercept(KeyAction::Bound(binding.action.clone()))
+                    }
                     None => FilterResult::Forward,
                 }
             },
         );
 
-        if let Some(action) = action {
-            self.dispatch(&action);
+        match action {
+            Some(KeyAction::Bound(action)) => self.dispatch(&action),
+            Some(KeyAction::SwitchVt(vt)) => self.switch_vt(vt),
+            Some(KeyAction::EmergencyExit) => {
+                tracing::info!("аварийный выход по Ctrl+Alt+Backspace");
+                self.dispatch(&hype_config::Action::Quit);
+            }
+            None => {}
+        }
+    }
+
+    /// Переключается на другую виртуальную консоль.
+    ///
+    /// Во вложенном режиме консолей нет, и запрос просто игнорируется.
+    pub fn switch_vt(&mut self, vt: i32) {
+        use smithay::backend::session::Session;
+
+        let Some(drm) = self.drm.as_mut() else {
+            tracing::debug!("переключение консоли доступно только в сеансе на видеокарте");
+            return;
+        };
+
+        match drm.session.change_vt(vt) {
+            Ok(()) => tracing::info!("переключение на консоль {vt}"),
+            Err(err) => tracing::warn!("не удалось переключиться на консоль {vt}: {err}"),
         }
     }
 
@@ -229,6 +306,42 @@ mod tests {
             shift,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn console_switch_keys_are_recognised() {
+        // Ctrl+Alt+F1 … Ctrl+Alt+F12 идут подряд начиная с XF86Switch_VT_1.
+        assert_eq!(vt_from_keysym(0x1008_FE01), Some(1));
+        assert_eq!(vt_from_keysym(0x1008_FE02), Some(2));
+        assert_eq!(vt_from_keysym(0x1008_FE0C), Some(12));
+    }
+
+    #[test]
+    fn other_keys_are_not_mistaken_for_console_switches() {
+        assert_eq!(vt_from_keysym(0x1008_FE00), None);
+        assert_eq!(vt_from_keysym(0x1008_FE0D), None);
+        // Обычная буква.
+        assert_eq!(vt_from_keysym(0x0071), None);
+        // Мультимедийная клавиша из того же диапазона XF86.
+        assert_eq!(vt_from_keysym(0x1008_FF11), None);
+    }
+
+    #[test]
+    fn the_emergency_exit_needs_both_modifiers() {
+        let both = modifiers(false, true, true, false);
+        assert!(is_emergency_exit(&both, KEYSYM_BACKSPACE));
+
+        // Один модификатор — обычное удаление символа, его трогать нельзя.
+        assert!(!is_emergency_exit(
+            &modifiers(false, true, false, false),
+            KEYSYM_BACKSPACE
+        ));
+        assert!(!is_emergency_exit(
+            &modifiers(false, false, true, false),
+            KEYSYM_BACKSPACE
+        ));
+        // Та же пара модификаторов с другой клавишей.
+        assert!(!is_emergency_exit(&both, 0x0071));
     }
 
     #[test]

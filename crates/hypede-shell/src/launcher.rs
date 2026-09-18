@@ -25,8 +25,18 @@ const MAX_RESULTS: usize = 30;
 /// Размер значка приложения.
 const ICON_SIZE: i32 = 40;
 
-/// Собирает и показывает окно поиска.
+/// Собирает и показывает окно поиска отдельным приложением.
+///
+/// Используется запасным путём, когда полка не запущена.
 pub fn build(app: &Application) {
+    open(app);
+}
+
+/// Создаёт и показывает окно поиска.
+///
+/// Полка держит это окно у себя и переключает его: так повторное нажатие
+/// закрывает поиск, а не открывает второй поверх первого.
+pub fn open(app: &Application) -> ApplicationWindow {
     crate::theme::load();
 
     let apps = Rc::new(find_applications(
@@ -184,8 +194,35 @@ pub fn build(app: &Application) {
     });
     window.add_controller(controller);
 
+    // Окно закрывается, когда теряет фокус, — как и любое всплывающее меню.
+    // Флаг нужен, чтобы оно не закрылось до того, как фокус вообще получен.
+    let was_active = std::cell::Cell::new(false);
+    window.connect_is_active_notify(move |window| {
+        if window.is_active() {
+            was_active.set(true);
+        } else if was_active.get() {
+            window.close();
+        }
+    });
+
+    // Момент закрытия запоминается для полки: щелчок по её кнопке сначала
+    // отнимает фокус и закрывает окно, и без этой отметки тот же щелчок
+    // немедленно открыл бы его заново.
+    window.connect_close_request(|_| {
+        crate::note_launcher_closed();
+        glib::Propagation::Proceed
+    });
+
+    // GTK берёт идентификатор окна из имени программы, а полка и поиск
+    // приложений живут в одном процессе. На время показа окна имя подменяется,
+    // иначе композитор примет поиск за полку и положит его в её полосу.
+    let previous = glib::prgname();
+    glib::set_prgname(Some(crate::LAUNCHER_APP_ID));
     window.present();
+    glib::set_prgname(previous.as_deref());
+
     entry.grab_focus();
+    window
 }
 
 fn move_selection(grid: &FlowBox, delta: i32) -> glib::Propagation {

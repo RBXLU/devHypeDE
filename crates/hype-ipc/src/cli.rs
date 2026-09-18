@@ -45,7 +45,7 @@ hypectl — управление композитором HypeDE
   reload                           перечитать настройки
   quit                             завершить сеанс
 
-Виды событий: window, workspace, output, focus, theme.
+Виды событий: window, workspace, output, focus, theme, shell.
 Без указания подписка идёт на все.
 
 Примеры:
@@ -177,6 +177,7 @@ fn parse_events(args: &[String]) -> Result<Vec<EventKind>, ParseError> {
             EventKind::Output,
             EventKind::Focus,
             EventKind::Theme,
+            EventKind::Shell,
         ]);
     }
 
@@ -187,8 +188,9 @@ fn parse_events(args: &[String]) -> Result<Vec<EventKind>, ParseError> {
             "output" => Ok(EventKind::Output),
             "focus" => Ok(EventKind::Focus),
             "theme" => Ok(EventKind::Theme),
+            "shell" => Ok(EventKind::Shell),
             other => Err(ParseError(format!(
-                "неизвестный вид событий «{other}». Есть: window, workspace, output, focus, theme"
+                "неизвестный вид событий «{other}». Есть: window, workspace, output, focus, theme, shell"
             ))),
         })
         .collect()
@@ -280,7 +282,7 @@ mod tests {
         let Command::Subscribe(kinds) = parse(&args(&["subscribe"])).unwrap() else {
             panic!("ожидалась подписка");
         };
-        assert_eq!(kinds.len(), 5);
+        assert_eq!(kinds.len(), 6);
     }
 
     #[test]

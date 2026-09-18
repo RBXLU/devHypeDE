@@ -16,7 +16,7 @@ use gtk4::{
     Orientation, Popover, Scale,
 };
 use hype_config::{Action, Config};
-use hype_ipc::{Client, Event, EventKind, Request, Response, WindowInfo};
+use hype_ipc::{Client, Event, EventKind, Request, Response, ShellRequest, WindowInfo};
 
 use crate::desktop::{find_applications, resolve_pinned, DesktopApp};
 use crate::sound::{play, Sound};
@@ -110,13 +110,21 @@ pub fn build(app: &Application, config: &Config) {
     window.add_css_class("hype-shell");
     window.add_css_class("hype-shelf");
 
+    // Поиск приложений живёт здесь же, а не отдельным процессом: иначе каждое
+    // нажатие открывало бы ещё одно окно поверх прежнего.
+    let launcher_window: Rc<RefCell<LauncherSlot>> = Rc::new(RefCell::new(LauncherSlot::default()));
+
     // --- слева: кнопка запуска ---
     let launcher = Button::new();
     launcher.set_child(Some(&icon("view-app-grid-symbolic", GLYPH_SIZE)));
     launcher.add_css_class("hype-launcher-button");
     launcher.set_valign(Align::Center);
     launcher.set_tooltip_text(Some("Приложения (Super+Space)"));
-    launcher.connect_clicked(|_| open_launcher());
+    launcher.connect_clicked({
+        let app = app.clone();
+        let launcher_window = Rc::clone(&launcher_window);
+        move |_| toggle_launcher(&app, &launcher_window)
+    });
 
     let left = GtkBox::new(Orientation::Horizontal, 8);
     left.set_margin_start(8);
@@ -191,7 +199,13 @@ pub fn build(app: &Application, config: &Config) {
 
     start_clock(&widgets);
     start_battery(&widgets);
-    start_ipc(&widgets, &shelf_apps, config.layout.workspaces);
+    start_ipc(
+        &widgets,
+        &shelf_apps,
+        config.layout.workspaces,
+        app.clone(),
+        Rc::clone(&launcher_window),
+    );
 
     // Звук приветствия проигрывается один раз при поднятии полки: для
     // пользователя это и есть момент входа в среду.
@@ -402,14 +416,57 @@ fn icon(name: &str, size: i32) -> Image {
     image
 }
 
-/// Открывает поиск приложений отдельным процессом.
-fn open_launcher() {
-    let program = std::env::current_exe().unwrap_or_else(|_| "hype-shell".into());
-    if let Err(err) = std::process::Command::new(program)
-        .arg("--launcher")
-        .spawn()
+/// Открывает поиск приложений, а если он уже открыт — закрывает.
+///
+/// Окно живёт в этом же процессе. Отдельный процесс на каждое нажатие давал
+/// бы стопку окон: защита GTK от второго экземпляра работает через D-Bus, а
+/// его в сеансе может и не быть.
+fn toggle_launcher(app: &Application, slot: &Rc<RefCell<LauncherSlot>>) {
     {
-        tracing::warn!("не удалось открыть поиск приложений: {err}");
+        let mut slot = slot.borrow_mut();
+
+        // Окно могло закрыться само — по Esc или потеряв фокус. Ссылка на него
+        // при этом остаётся, поэтому проверяется именно видимость.
+        let open = slot
+            .window
+            .as_ref()
+            .map(|window| window.is_visible())
+            .unwrap_or(false);
+
+        if open {
+            if let Some(window) = slot.window.take() {
+                window.close();
+            }
+            return;
+        }
+
+        // Щелчок по кнопке сначала отнимает у окна фокус, и оно закрывается
+        // само. Без этой проверки тот же щелчок тут же открыл бы его заново, и
+        // поиск нельзя было бы закрыть кнопкой вовсе.
+        if LauncherSlot::just_closed() {
+            slot.window = None;
+            return;
+        }
+    }
+
+    let window = crate::launcher::open(app);
+    slot.borrow_mut().window = Some(window);
+}
+
+/// Окно поиска приложений, пока оно открыто.
+#[derive(Default)]
+struct LauncherSlot {
+    window: Option<ApplicationWindow>,
+}
+
+impl LauncherSlot {
+    /// Закрылось ли окно только что — прямо перед этим нажатием.
+    fn just_closed() -> bool {
+        /// Столько времени проходит между потерей фокуса и обработкой щелчка.
+        /// С запасом, но заметно меньше, чем осознанное повторное нажатие.
+        const RECENT: std::time::Duration = std::time::Duration::from_millis(250);
+
+        crate::launcher_closed_recently(RECENT)
     }
 }
 
@@ -464,7 +521,13 @@ fn start_battery(widgets: &Rc<Widgets>) {
 }
 
 /// Держит связь с композитором.
-fn start_ipc(widgets: &Rc<Widgets>, apps: &Rc<Vec<ShelfApp>>, workspace_count: u8) {
+fn start_ipc(
+    widgets: &Rc<Widgets>,
+    apps: &Rc<Vec<ShelfApp>>,
+    workspace_count: u8,
+    app: Application,
+    launcher_window: Rc<RefCell<LauncherSlot>>,
+) {
     let state = Rc::new(RefCell::new(ShelfState {
         active_workspace: 1,
         workspaces: workspace_count,
@@ -489,6 +552,7 @@ fn start_ipc(widgets: &Rc<Widgets>, apps: &Rc<Vec<ShelfApp>>, workspace_count: u
                 EventKind::Workspace,
                 EventKind::Focus,
                 EventKind::Window,
+                EventKind::Shell,
             ]) {
                 Ok(events) => events,
                 Err(err) => {
@@ -517,8 +581,20 @@ fn start_ipc(widgets: &Rc<Widgets>, apps: &Rc<Vec<ShelfApp>>, workspace_count: u
     let apps = Rc::clone(apps);
     glib::spawn_future_local(async move {
         while let Ok(event) = receiver.recv().await {
-            if let Event::WorkspaceChanged { index } = event {
-                state.borrow_mut().active_workspace = index;
+            match event {
+                Event::WorkspaceChanged { index } => {
+                    state.borrow_mut().active_workspace = index;
+                }
+                Event::ShellRequest { request } => {
+                    match request {
+                        ShellRequest::ToggleLauncher => toggle_launcher(&app, &launcher_window),
+                        ShellRequest::ToggleOverview => {
+                            tracing::info!("обзор окон ещё не реализован");
+                        }
+                    }
+                    continue;
+                }
+                _ => {}
             }
             // Любое событие означает, что список окон мог измениться; проще и
             // надёжнее перечитать его целиком, чем вести свою копию.

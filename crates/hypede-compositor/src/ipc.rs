@@ -86,6 +86,18 @@ impl IpcServer {
     pub fn subscriber_count(&self) -> usize {
         self.subscribers.lock().map(|s| s.len()).unwrap_or(0)
     }
+
+    /// Слушает ли кто-нибудь события этого вида.
+    ///
+    /// По этому признаку композитор решает, просить ли оболочку показать окно
+    /// или поднимать его самому: если полка запущена, она справится лучше —
+    /// у неё окно уже есть, и второе создавать незачем.
+    pub fn has_subscriber(&self, kind: EventKind) -> bool {
+        self.subscribers
+            .lock()
+            .map(|list| list.iter().any(|s| s.kinds.contains(&kind)))
+            .unwrap_or(false)
+    }
 }
 
 impl Drop for IpcServer {

@@ -82,6 +82,8 @@ pub enum EventKind {
     Output,
     Focus,
     Theme,
+    /// Просьбы к оболочке: открыть поиск приложений, показать обзор окон.
+    Shell,
 }
 
 /// Событие, происходящее в среде.
@@ -111,6 +113,24 @@ pub enum Event {
         name: String,
     },
     ThemeChanged,
+    /// Композитор просит оболочку что-то показать или спрятать.
+    ///
+    /// Оболочка держит эти окна у себя: если бы композитор запускал их
+    /// отдельными процессами, каждое нажатие открывало бы ещё одно поверх
+    /// прежнего, а закрыть их было бы нечем.
+    ShellRequest {
+        request: ShellRequest,
+    },
+}
+
+/// Что композитор просит показать.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ShellRequest {
+    /// Показать поиск приложений, а если он открыт — закрыть.
+    ToggleLauncher,
+    /// Показать обзор окон.
+    ToggleOverview,
 }
 
 impl Event {
@@ -124,6 +144,7 @@ impl Event {
             Event::WorkspaceChanged { .. } => EventKind::Workspace,
             Event::OutputAdded { .. } | Event::OutputRemoved { .. } => EventKind::Output,
             Event::ThemeChanged => EventKind::Theme,
+            Event::ShellRequest { .. } => EventKind::Shell,
         }
     }
 }
@@ -257,6 +278,17 @@ mod tests {
         assert_eq!(Event::WindowClosed { id: 1 }.kind(), EventKind::Window);
         assert_eq!(Event::FocusChanged { id: None }.kind(), EventKind::Focus);
         assert_eq!(Event::ThemeChanged.kind(), EventKind::Theme);
+    }
+
+    #[test]
+    fn shell_requests_are_their_own_kind() {
+        let event = Event::ShellRequest {
+            request: ShellRequest::ToggleLauncher,
+        };
+        assert_eq!(event.kind(), EventKind::Shell);
+
+        let text = serde_json::to_string(&event).unwrap();
+        assert_eq!(serde_json::from_str::<Event>(&text).unwrap(), event);
     }
 
     #[test]

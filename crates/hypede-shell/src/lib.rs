@@ -18,6 +18,26 @@ pub const PANEL_APP_ID: &str = "dev.hypede.Shell";
 /// Идентификатор окна поиска приложений.
 pub const LAUNCHER_APP_ID: &str = "dev.hypede.Launcher";
 
+thread_local! {
+    /// Когда окно поиска приложений закрылось в последний раз.
+    static LAUNCHER_CLOSED_AT: std::cell::Cell<Option<std::time::Instant>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Отмечает, что окно поиска приложений только что закрылось.
+pub fn note_launcher_closed() {
+    LAUNCHER_CLOSED_AT.with(|cell| cell.set(Some(std::time::Instant::now())));
+}
+
+/// Закрылось ли окно поиска приложений только что.
+pub fn launcher_closed_recently(within: std::time::Duration) -> bool {
+    LAUNCHER_CLOSED_AT.with(|cell| {
+        cell.get()
+            .map(|moment| moment.elapsed() < within)
+            .unwrap_or(false)
+    })
+}
+
 /// Готовит запуск программы среды.
 ///
 /// В начало `PATH` добавляется каталог самой оболочки: при запуске из дерева

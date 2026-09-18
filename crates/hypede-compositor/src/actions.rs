@@ -58,8 +58,12 @@ impl HypeState {
                 self.workspaces.activate_prev();
                 self.after_workspace_change();
             }
-            Action::ToggleLauncher => self.spawn_helper("hype-shell", &["--launcher"]),
-            Action::ToggleOverview => self.spawn_helper("hype-shell", &["--overview"]),
+            Action::ToggleLauncher => {
+                self.ask_shell(hype_ipc::ShellRequest::ToggleLauncher, "--launcher")
+            }
+            Action::ToggleOverview => {
+                self.ask_shell(hype_ipc::ShellRequest::ToggleOverview, "--overview")
+            }
             Action::Screenshot { target } => self.screenshot(*target),
             Action::ReloadConfig => self.reload_config(),
             Action::Quit => {
@@ -67,6 +71,28 @@ impl HypeState {
                 self.loop_signal.stop();
             }
         }
+    }
+
+    /// Просит оболочку показать своё окно.
+    ///
+    /// Если полка запущена и слушает события, просьба уходит ей: окно у неё
+    /// уже есть, и повторное нажатие его закроет. Запускать отдельный процесс
+    /// на каждое нажатие нельзя — окна копились бы одно поверх другого.
+    ///
+    /// Без запущенной полки остаётся запасной путь: поднять окно отдельным
+    /// процессом.
+    fn ask_shell(&mut self, request: hype_ipc::ShellRequest, fallback_argument: &str) {
+        let delivered = self
+            .ipc
+            .as_ref()
+            .is_some_and(|ipc| ipc.has_subscriber(hype_ipc::EventKind::Shell));
+
+        if delivered {
+            self.broadcast(&Event::ShellRequest { request });
+            return;
+        }
+
+        self.spawn_helper("hype-shell", &[fallback_argument]);
     }
 
     /// Запускает программу из действия `spawn`.

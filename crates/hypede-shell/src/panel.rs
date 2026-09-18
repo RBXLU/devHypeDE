@@ -672,7 +672,10 @@ fn matches_app(app_id: &str, desktop_id: Option<&str>, program: &str) -> bool {
 
     // Последняя часть обратного доменного имени: org.gnome.Foot -> foot.
     let tail = app_id.rsplit('.').next().unwrap_or(&app_id);
-    !program.is_empty() && tail == program
+    if !program.is_empty() && tail == program {
+        return true;
+    }
+    false
 }
 
 /// Какие рабочие столы показывать.

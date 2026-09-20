@@ -4,8 +4,8 @@
 //! действий один, значит и поведение одинаковое.
 
 use hype_anim::Rect;
-use hype_config::{Action, Config, Direction, ScreenshotTarget};
-use hype_ipc::Event;
+use hype_config::{Action, Config, Direction, LayoutMode, ScreenshotTarget};
+use hype_ipc::{Event, SessionMode};
 use smithay::utils::SERIAL_COUNTER;
 use tracing::{info, warn};
 
@@ -58,6 +58,8 @@ impl HypeState {
                 self.workspaces.activate_prev();
                 self.after_workspace_change();
             }
+            Action::ToggleSessionMode => self.toggle_session_mode(),
+            Action::SessionMode { mode } => self.set_session_mode(*mode),
             Action::ToggleLauncher => {
                 self.ask_shell(hype_ipc::ShellRequest::ToggleLauncher, "--launcher")
             }
@@ -208,6 +210,68 @@ impl HypeState {
         }
         self.relayout();
         self.notify_window_changed(id);
+    }
+
+    fn toggle_session_mode(&mut self) {
+        let next = match self.config.layout.mode {
+            LayoutMode::Tiling => LayoutMode::Floating,
+            LayoutMode::Floating => LayoutMode::Tiling,
+        };
+        self.set_session_mode(next);
+    }
+
+    /// Переключает сеанс между плиткой и рабочим столом.
+    ///
+    /// Окна при этом не прыгают: уходя из плитки, каждое окно забирает себе
+    /// ту геометрию, которую занимало, и дальше живёт ею. Прыжок всех окон
+    /// разом был бы худшим, что среда может сделать в середине работы —
+    /// человек потерял бы из виду то, на что смотрел.
+    pub fn set_session_mode(&mut self, mode: LayoutMode) {
+        if self.config.layout.mode == mode {
+            return;
+        }
+
+        if mode == LayoutMode::Floating {
+            let ids: Vec<u64> = self.workspaces.visible_windows().to_vec();
+            for id in ids {
+                let Some(managed) = self.windows.get(&id) else {
+                    continue;
+                };
+                // Окна среды в раскладке не участвуют, и своя геометрия им не
+                // нужна: панель останется полосой, лаунчер — окном по центру.
+                if crate::roles::role_for(&managed.app_id()) != crate::roles::Role::Normal {
+                    continue;
+                }
+                let current = managed.anim.target();
+                if current.size.w > 1.0 && current.size.h > 1.0 {
+                    if let Some(managed) = self.windows.get_mut(&id) {
+                        managed.floating_rect = current;
+                    }
+                }
+            }
+        }
+
+        self.config.layout.mode = mode;
+        self.relayout();
+
+        // Режим переживает перезапуск сеанса: человек выбрал, как ему работать,
+        // и повторять выбор после каждой перезагрузки он не должен.
+        if let Err(err) = hype_config::save(&self.config) {
+            warn!("не удалось сохранить режим сеанса: {err}");
+        }
+
+        let session_mode = match mode {
+            LayoutMode::Tiling => SessionMode::Tiling,
+            LayoutMode::Floating => SessionMode::Desktop,
+        };
+        info!(
+            "режим сеанса: {}",
+            match session_mode {
+                SessionMode::Tiling => "плитка",
+                SessionMode::Desktop => "рабочий стол",
+            }
+        );
+        self.broadcast(&Event::SessionModeChanged { mode: session_mode });
     }
 
     /// Геометрия видимых окон — нужна для переходов фокуса по направлению.

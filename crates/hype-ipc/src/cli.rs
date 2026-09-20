@@ -3,7 +3,7 @@
 //! Обходимся без внешнего разборщика: набор команд маленький, а зависимость
 //! ради десятка строк утяжелила бы крейт, который линкуется в композитор.
 
-use hype_config::{Action, Direction, ScreenshotTarget};
+use hype_config::{Action, Direction, LayoutMode, ScreenshotTarget};
 
 use crate::{EventKind, Request};
 
@@ -41,16 +41,18 @@ hypectl — управление композитором HypeDE
   move-to <номер>                  перенести окно на рабочий стол
   next | prev                      соседний рабочий стол
   launcher | overview              поиск приложений, обзор окон
+  mode [toggle|tiling|desktop]     режим сеанса: плитка или рабочий стол
   screenshot [screen|window|region] снимок экрана
   reload                           перечитать настройки
   quit                             завершить сеанс
 
-Виды событий: window, workspace, output, focus, theme, shell.
+Виды событий: window, workspace, output, focus, theme, session, shell.
 Без указания подписка идёт на все.
 
 Примеры:
   hypectl dispatch workspace 3
   hypectl dispatch spawn foot -e htop
+  hypectl dispatch mode desktop
   hypectl subscribe window focus
 ";
 
@@ -118,6 +120,19 @@ fn parse_action(args: &[String]) -> Result<Action, ParseError> {
         "fullscreen" => Ok(Action::ToggleFullscreen),
         "maximize" => Ok(Action::ToggleMaximized),
         "float" => Ok(Action::ToggleFloating),
+        // Режим сеанса: без уточнения — переключить, с уточнением — задать.
+        "mode" | "session-mode" => match rest.first().map(String::as_str) {
+            None | Some("toggle") => Ok(Action::ToggleSessionMode),
+            Some("tiling") | Some("tile") => Ok(Action::SessionMode {
+                mode: LayoutMode::Tiling,
+            }),
+            Some("desktop") | Some("de") | Some("floating") => Ok(Action::SessionMode {
+                mode: LayoutMode::Floating,
+            }),
+            Some(other) => Err(ParseError(format!(
+                "mode: «{other}» — ожидалось toggle, tiling или desktop"
+            ))),
+        },
         "focus" => Ok(Action::FocusDirection {
             direction: parse_direction(rest.first())?,
         }),
@@ -177,6 +192,7 @@ fn parse_events(args: &[String]) -> Result<Vec<EventKind>, ParseError> {
             EventKind::Output,
             EventKind::Focus,
             EventKind::Theme,
+            EventKind::Session,
             EventKind::Shell,
         ]);
     }
@@ -188,6 +204,7 @@ fn parse_events(args: &[String]) -> Result<Vec<EventKind>, ParseError> {
             "output" => Ok(EventKind::Output),
             "focus" => Ok(EventKind::Focus),
             "theme" => Ok(EventKind::Theme),
+            "session" => Ok(EventKind::Session),
             "shell" => Ok(EventKind::Shell),
             other => Err(ParseError(format!(
                 "неизвестный вид событий «{other}». Есть: window, workspace, output, focus, theme, shell"
@@ -199,9 +216,54 @@ fn parse_events(args: &[String]) -> Result<Vec<EventKind>, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hype_config::LayoutMode;
 
     fn args(input: &[&str]) -> Vec<String> {
         input.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn the_session_mode_toggles_without_arguments() {
+        let parsed = parse(&args(&["dispatch", "mode"])).unwrap();
+        assert_eq!(
+            parsed,
+            Command::Request(Request::Dispatch {
+                action: Action::ToggleSessionMode
+            })
+        );
+    }
+
+    #[test]
+    fn the_session_mode_can_be_named() {
+        for (word, mode) in [
+            ("tiling", LayoutMode::Tiling),
+            ("tile", LayoutMode::Tiling),
+            ("desktop", LayoutMode::Floating),
+            ("de", LayoutMode::Floating),
+            ("floating", LayoutMode::Floating),
+        ] {
+            let parsed = parse(&args(&["dispatch", "mode", word])).unwrap();
+            assert_eq!(
+                parsed,
+                Command::Request(Request::Dispatch {
+                    action: Action::SessionMode { mode }
+                }),
+                "{word}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_session_mode_is_refused() {
+        assert!(parse(&args(&["dispatch", "mode", "grid"])).is_err());
+    }
+
+    #[test]
+    fn session_events_can_be_subscribed_to() {
+        let Command::Subscribe(kinds) = parse(&args(&["subscribe", "session"])).unwrap() else {
+            panic!("ожидалась подписка");
+        };
+        assert_eq!(kinds, vec![EventKind::Session]);
     }
 
     #[test]
@@ -282,7 +344,7 @@ mod tests {
         let Command::Subscribe(kinds) = parse(&args(&["subscribe"])).unwrap() else {
             panic!("ожидалась подписка");
         };
-        assert_eq!(kinds.len(), 6);
+        assert_eq!(kinds.len(), 7);
     }
 
     #[test]

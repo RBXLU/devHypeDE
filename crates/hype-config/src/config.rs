@@ -473,6 +473,7 @@ pub fn default_keybinds() -> Vec<Binding> {
         Binding::new("Super+F", Action::ToggleFullscreen),
         Binding::new("Super+M", Action::ToggleMaximized),
         Binding::new("Super+V", Action::ToggleFloating),
+        Binding::new("Super+Shift+D", Action::ToggleSessionMode),
         Binding::new("Super+Space", Action::ToggleLauncher),
         Binding::new("Super+Tab", Action::ToggleOverview),
         Binding::new("Super+Shift+R", Action::ReloadConfig),

@@ -324,6 +324,25 @@ fn build_tiles(config: &Config) -> GtkBox {
         .connect_clicked(|_| dispatch(Action::ToggleOverview));
     tiles.append(&overview.0);
 
+    // Режим сеанса: плитка или рабочий стол.
+    let desktop_mode = config.layout.mode == hype_config::LayoutMode::Floating;
+    let mode_tile = tile(
+        if desktop_mode {
+            "view-grid-symbolic"
+        } else {
+            "view-restore-symbolic"
+        },
+        if desktop_mode {
+            "Плитка"
+        } else {
+            "Рабочий стол"
+        },
+    );
+    mode_tile
+        .1
+        .connect_clicked(|_| dispatch(Action::ToggleSessionMode));
+    tiles.append(&mode_tile.0);
+
     // Снимок экрана.
     let shot = tile("camera-photo-symbolic", "Снимок");
     shot.1.connect_clicked(|_| {

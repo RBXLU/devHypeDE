@@ -25,8 +25,8 @@ mod protocol;
 mod transport;
 
 pub use protocol::{
-    Event, EventKind, Outgoing, OutputInfo, Request, Response, ShellRequest, State, WindowInfo,
-    WorkspaceInfo,
+    Event, EventKind, Outgoing, OutputInfo, Request, Response, SessionMode, ShellRequest, State,
+    WindowInfo, WorkspaceInfo,
 };
 pub use transport::{
     read_message, write_message, Client, Connection, EventStream, IpcError, Listener,

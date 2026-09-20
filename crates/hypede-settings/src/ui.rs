@@ -344,7 +344,7 @@ fn page_windows(state: &Shared) -> ScrolledWindow {
     let page = page_box();
 
     page.append(&section_title("Раскладка"));
-    let modes = DropDown::from_strings(&["Плитка", "Свободное размещение"]);
+    let modes = DropDown::from_strings(&["Плитка", "Рабочий стол"]);
     modes.set_selected(if state.borrow().config.layout.mode == LayoutMode::Tiling {
         0
     } else {
@@ -361,7 +361,12 @@ fn page_windows(state: &Shared) -> ScrolledWindow {
             state.borrow().mark_dirty();
         }
     });
-    page.append(&labelled("Как расставлять окна", &modes));
+    page.append(&labelled("Режим сеанса", &modes));
+    page.append(&hint(
+        "В плитке окна делят экран без перекрытий, в режиме рабочего стола \
+свободно плавают. Тот же переключатель — Super+Shift+D и плитка в панели \
+быстрых настроек.",
+    ));
 
     page.append(&scale_row(
         state,

@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::config::LayoutMode;
+
 /// Направление на экране.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -94,6 +96,18 @@ pub enum Action {
     NextWorkspace,
     PrevWorkspace,
 
+    /// Переключить режим сеанса: плитка ↔ рабочий стол.
+    ///
+    /// В режиме рабочего стола окна плавают и перекрываются, как в привычных
+    /// средах; в режиме плитки они делят экран без перекрытий. Это одно
+    /// действие, а не две настройки, потому что переключаются они одним
+    /// нажатием и в середине работы.
+    ToggleSessionMode,
+    /// Задать режим сеанса явно.
+    SessionMode {
+        mode: LayoutMode,
+    },
+
     /// Показать обзор всех окон.
     ToggleOverview,
     /// Показать поиск по приложениям.
@@ -132,6 +146,11 @@ impl Action {
             Action::MoveToWorkspace { index } => format!("Окно на рабочий стол {index}"),
             Action::NextWorkspace => "Следующий рабочий стол".into(),
             Action::PrevWorkspace => "Предыдущий рабочий стол".into(),
+            Action::ToggleSessionMode => "Режим сеанса".into(),
+            Action::SessionMode { mode } => match mode {
+                LayoutMode::Tiling => "Режим плитки".into(),
+                LayoutMode::Floating => "Режим рабочего стола".into(),
+            },
             Action::ToggleOverview => "Обзор окон".into(),
             Action::ToggleLauncher => "Поиск приложений".into(),
             Action::Screenshot { target } => match target {

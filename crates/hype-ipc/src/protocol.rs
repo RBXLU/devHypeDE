@@ -82,6 +82,8 @@ pub enum EventKind {
     Output,
     Focus,
     Theme,
+    /// Смена режима сеанса: плитка или рабочий стол.
+    Session,
     /// Просьбы к оболочке: открыть поиск приложений, показать обзор окон.
     Shell,
 }
@@ -113,6 +115,13 @@ pub enum Event {
         name: String,
     },
     ThemeChanged,
+    /// Сеанс переключился между плиткой и рабочим столом.
+    ///
+    /// Полка показывает текущий режим, и без события ей пришлось бы опрашивать
+    /// композитор: событие дешевле и не отстаёт от нажатия.
+    SessionModeChanged {
+        mode: SessionMode,
+    },
     /// Композитор просит оболочку что-то показать или спрятать.
     ///
     /// Оболочка держит эти окна у себя: если бы композитор запускал их
@@ -121,6 +130,16 @@ pub enum Event {
     ShellRequest {
         request: ShellRequest,
     },
+}
+
+/// Режим сеанса: как среда ведёт себя с окнами.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SessionMode {
+    /// Окна делят экран без перекрытий.
+    Tiling,
+    /// Окна плавают и перекрываются, как в привычных средах.
+    Desktop,
 }
 
 /// Что композитор просит показать.
@@ -144,6 +163,7 @@ impl Event {
             Event::WorkspaceChanged { .. } => EventKind::Workspace,
             Event::OutputAdded { .. } | Event::OutputRemoved { .. } => EventKind::Output,
             Event::ThemeChanged => EventKind::Theme,
+            Event::SessionModeChanged { .. } => EventKind::Session,
             Event::ShellRequest { .. } => EventKind::Shell,
         }
     }
@@ -278,6 +298,13 @@ mod tests {
         assert_eq!(Event::WindowClosed { id: 1 }.kind(), EventKind::Window);
         assert_eq!(Event::FocusChanged { id: None }.kind(), EventKind::Focus);
         assert_eq!(Event::ThemeChanged.kind(), EventKind::Theme);
+        assert_eq!(
+            Event::SessionModeChanged {
+                mode: SessionMode::Desktop
+            }
+            .kind(),
+            EventKind::Session
+        );
     }
 
     #[test]

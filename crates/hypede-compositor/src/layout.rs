@@ -95,6 +95,31 @@ pub fn arrange(area: Rect, windows: &[LayoutWindow], config: &LayoutConfig) -> V
     tiles
 }
 
+/// Место для нового плавающего окна.
+///
+/// В режиме рабочего стола окна не раскладываются автоматически, и без сдвига
+/// каждое новое ложилось бы точно поверх прежнего — стопка, в которой не
+/// видно, что окон несколько. Поэтому каждое следующее окно смещается на шаг
+/// вниз и вправо, а дойдя до края, счёт начинается заново.
+pub fn cascade_rect(area: Rect, opened_before: usize) -> Rect {
+    let base = area.scaled_around_center(0.6);
+    let step = (area.size.w.min(area.size.h) * 0.04).clamp(8.0, 48.0);
+
+    // Сколько шагов помещается до края рабочей области — по тесной из сторон.
+    let free_x = (area.origin.x + area.size.w - (base.origin.x + base.size.w)).max(0.0);
+    let free_y = (area.origin.y + area.size.h - (base.origin.y + base.size.h)).max(0.0);
+    let steps = ((free_x.min(free_y) / step).floor() as usize).max(1);
+
+    let offset = (opened_before % steps) as f64 * step;
+
+    Rect::new(
+        base.origin.x + offset,
+        base.origin.y + offset,
+        base.size.w,
+        base.size.h,
+    )
+}
+
 /// Классическая раскладка «главное окно и стопка»: первое окно занимает левую
 /// колонку, остальные делят правую по вертикали. При одном окне колонок нет —
 /// оно занимает всё рабочее поле.
@@ -221,6 +246,63 @@ mod tests {
             master_ratio: 0.5,
             ..LayoutConfig::default()
         }
+    }
+
+    #[test]
+    fn the_first_floating_window_opens_in_the_middle() {
+        let first = cascade_rect(SCREEN, 0);
+        assert_eq!(first, SCREEN.scaled_around_center(0.6));
+    }
+
+    #[test]
+    fn every_next_floating_window_is_offset_from_the_previous_one() {
+        let first = cascade_rect(SCREEN, 0);
+        let second = cascade_rect(SCREEN, 1);
+
+        assert!(second.origin.x > first.origin.x);
+        assert!(second.origin.y > first.origin.y);
+        // Сдвиг одинаковый по обеим осям: окно едет по диагонали.
+        assert!(
+            (second.origin.x - first.origin.x - (second.origin.y - first.origin.y)).abs() < 0.001
+        );
+        assert_eq!(second.size, first.size);
+    }
+
+    #[test]
+    fn the_cascade_never_leaves_the_work_area() {
+        for opened in 0..50 {
+            let rect = cascade_rect(SCREEN, opened);
+            assert!(rect.origin.x >= SCREEN.origin.x, "{opened}");
+            assert!(rect.origin.y >= SCREEN.origin.y, "{opened}");
+            assert!(
+                rect.origin.x + rect.size.w <= SCREEN.origin.x + SCREEN.size.w + 0.001,
+                "{opened}"
+            );
+            assert!(
+                rect.origin.y + rect.size.h <= SCREEN.origin.y + SCREEN.size.h + 0.001,
+                "{opened}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_cascade_starts_over_instead_of_running_off_the_screen() {
+        // Дойдя до края, счёт начинается заново — иначе окна уехали бы за
+        // пределы экрана или сбились в угол.
+        let first = cascade_rect(SCREEN, 0);
+        let wrapped = (1..60)
+            .map(|n| cascade_rect(SCREEN, n))
+            .find(|r| *r == first);
+        assert!(wrapped.is_some());
+    }
+
+    #[test]
+    fn a_tiny_screen_still_gets_a_usable_rectangle() {
+        let tiny = Rect::new(0.0, 0.0, 80.0, 60.0);
+        let rect = cascade_rect(tiny, 7);
+        assert!(rect.size.w > 0.0 && rect.size.h > 0.0);
+        assert!(rect.origin.x + rect.size.w <= tiny.size.w + 0.001);
+        assert!(rect.origin.y + rect.size.h <= tiny.size.h + 0.001);
     }
 
     fn tiled(count: usize) -> Vec<LayoutWindow> {

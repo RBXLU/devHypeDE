@@ -29,7 +29,14 @@ impl XdgShellHandler for HypeState {
         // Стартовая геометрия — небольшой прямоугольник в центре рабочей
         // области: с неё начнётся анимация появления.
         let area = self.work_area();
-        let initial = area.scaled_around_center(0.6);
+        // В режиме рабочего стола окна никто не расставляет, поэтому новое
+        // окно приходит со сдвигом от предыдущих; в плитке сдвиг не нужен —
+        // раскладка всё равно назначит место.
+        let initial = if self.config.layout.mode == hype_config::LayoutMode::Floating {
+            crate::layout::cascade_rect(area, self.workspaces.visible_windows().len())
+        } else {
+            area.scaled_around_center(0.6)
+        };
 
         self.windows.insert(
             id,

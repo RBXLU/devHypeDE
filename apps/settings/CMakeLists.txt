@@ -68,10 +68,24 @@ qt_add_qml_module(hypede-settings
 # Для окна настроек разница в скорости работы незаметна.
 set_target_properties(hypede-settings PROPERTIES QT_QMLCACHEGEN_ARGUMENTS "--only-bytecode")
 
-qt_add_translations(hypede-settings
-    TS_FILES translations/hypede-settings_ru.ts
-    RESOURCE_PREFIX /i18n
-    LUPDATE_OPTIONS -no-obsolete
+# Перевод собирается напрямую через lrelease, а не qt_add_translations():
+# та ломается, если в пути к исходникам есть скобки — например, в папке
+# «devHypeDE(1)», которую браузер создаёт при повторной загрузке архива.
+set(HYPEDE_TS ${CMAKE_CURRENT_SOURCE_DIR}/translations/hypede-settings_ru.ts)
+set(HYPEDE_QM ${CMAKE_CURRENT_BINARY_DIR}/hypede-settings_ru.qm)
+add_custom_command(
+    OUTPUT ${HYPEDE_QM}
+    COMMAND Qt6::lrelease -silent ${HYPEDE_TS} -qm ${HYPEDE_QM}
+    DEPENDS ${HYPEDE_TS}
+    VERBATIM
+)
+set_source_files_properties(${HYPEDE_QM} PROPERTIES QT_RESOURCE_ALIAS hypede-settings_ru.qm)
+qt_add_resources(hypede-settings hypede_translations PREFIX /i18n FILES ${HYPEDE_QM})
+
+# Обновить .ts по исходникам: cmake --build <каталог> --target update_translations
+add_custom_target(update_translations
+    COMMAND Qt6::lupdate -no-obsolete -silent ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/qml -ts ${HYPEDE_TS}
+    VERBATIM
 )
 
 target_include_directories(hypede-settings PRIVATE src)

@@ -63,7 +63,10 @@ package() {
   cd "$startdir/.."
   make BUILD="$srcdir/build" PREFIX=/usr DESTDIR="$pkgdir" install
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
-  for doc in АРХИТЕКТУРА СБОРКА-И-ЗАПУСК НАСТРОЙКА ДОРОЖНАЯ-КАРТА; do
-    install -Dm644 "docs/$doc.md" "$pkgdir/usr/share/doc/$pkgname/$doc.md"
-  done
+  # В пакете — латинские имена: bsdtar при упаковке не всегда переводит
+  # кириллицу в путях в UTF-8 и выбрасывает такие файлы.
+  install -Dm644 docs/АРХИТЕКТУРА.md "$pkgdir/usr/share/doc/$pkgname/architecture.md"
+  install -Dm644 docs/СБОРКА-И-ЗАПУСК.md "$pkgdir/usr/share/doc/$pkgname/building.md"
+  install -Dm644 docs/НАСТРОЙКА.md "$pkgdir/usr/share/doc/$pkgname/configuration.md"
+  install -Dm644 docs/ДОРОЖНАЯ-КАРТА.md "$pkgdir/usr/share/doc/$pkgname/roadmap.md"
 }

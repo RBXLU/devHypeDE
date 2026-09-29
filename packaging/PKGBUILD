@@ -1,93 +1,65 @@
-# Сборка HypeDE для Arch и CachyOS.
+# Пакет HypeDE для Arch Linux и CachyOS.
 #
-# Установка из каталога с исходниками:
-#   makepkg -si
+# Сборка и установка из каталога с исходниками:
+#   cd packaging && makepkg -si
 #
-# После установки HypeDE появится в списке сеансов дисплейного менеджера
-# (SDDM, GDM, greetd — любого, читающего /usr/share/wayland-sessions).
+# После установки выйдите из системы: в списке сеансов экрана входа
+# (GDM, SDDM, greetd…) появится «HypeDE».
 
 pkgname=hypede-git
-pkgver=0.1.0
+pkgver=1.0.0
 pkgrel=1
-pkgdesc="HypeDE — среда рабочего стола на Wayland: композитор, панель, файловый менеджер и настройки"
+pkgdesc="HypeDE — GNOME в облике Chrome OS: полка, лаунчер, «Файлы» и «Настройки» на модулях KDE"
 arch=('x86_64' 'aarch64')
 url="https://github.com/RBXLU/devHypeDE"
 license=('GPL-3.0-or-later')
 
 depends=(
-  'wayland'
-  'libxkbcommon'
-  'libinput'
-  'libdrm'
-  'mesa'
-  'seatd'
-  'gtk4'
-  'pango'
-  'cairo'
-  'gdk-pixbuf2'
-  'glib2'
-  'hicolor-icon-theme'
+  # оболочка и сеанс
+  'gnome-shell>=48' 'gnome-session' 'gnome-settings-daemon' 'mutter'
+  'xdg-desktop-portal-gnome' 'ttf-roboto'
+  # «Файлы»
+  'python' 'python-gobject' 'gtk4' 'libadwaita>=1.7' 'gvfs' 'gnome-desktop-4'
+  # «Настройки»
+  'qt6-base' 'qt6-declarative' 'kcmutils' 'kcolorscheme' 'kconfig' 'kcoreaddons'
+  'kirigami' 'qqc2-desktop-style' 'breeze' 'breeze-icons'
 )
-makedepends=('rust' 'cargo' 'pkgconf')
+makedepends=('cmake' 'extra-cmake-modules' 'qt6-tools' 'gettext')
 optdepends=(
-  'foot: терминал, назначенный на Super+Return по умолчанию'
-  'inter-font: шрифт интерфейса по умолчанию'
-  'ttf-jetbrains-mono: моноширинный шрифт по умолчанию'
-  'xdg-desktop-portal-gtk: диалоги открытия файлов для приложений'
-  'pipewire: звуки среды (pw-play)'
-  'librsvg: значки в формате SVG'
-  'adwaita-cursors: указатель мыши, выбранный по умолчанию'
+  'plasma-nm: страница «Сеть → Подключения» (Wi‑Fi, VPN, Ethernet)'
+  'bluedevil: раздел «Bluetooth»'
+  'plasma-pa: «Устройство → Звук»'
+  'print-manager: «Устройство → Принтеры»'
+  'plasma-workspace: «Приложения по умолчанию» и «Автозапуск»'
+  'plasma-desktop: «Пользователи»'
+  'kde-cli-tools: «Типы файлов» (и kcmshell6 для модулей в отдельном окне)'
+  'flatpak-kcm: «Разрешения приложений»'
+  'plasma-firewall: «Брандмауэр»'
+  'kinfocenter: «О HypeDE → Сведения о системе»'
+  'power-profiles-daemon: переключатель режима питания'
+  'gnome-control-center: настройка мониторов (расположение и масштаб)'
+  'ptyxis: терминал для «Открыть в терминале»'
+  'qadwaitadecorations-qt6: заголовок окна «Настроек» как у GTK-приложений'
 )
 provides=('hypede')
 conflicts=('hypede')
 
 build() {
-  cd "$startdir"
-  cargo build --release --locked --workspace
+  cd "$startdir/.."
+  make BUILD="$srcdir/build" PREFIX=/usr
 }
 
 check() {
-  cd "$startdir"
-  cargo test --release --locked --workspace
+  cd "$startdir/.."
+  python -m unittest discover -s apps/files/tests -t apps/files
+  msgfmt --check -o /dev/null po/ru.po
 }
 
 package() {
-  cd "$startdir"
-
-  for binary in hypede-comp hype-shell hype-files hype-settings hypectl; do
-    install -Dm755 "target/release/$binary" "$pkgdir/usr/bin/$binary"
-  done
-
-  install -Dm644 packaging/hypede.desktop \
-    "$pkgdir/usr/share/wayland-sessions/hypede.desktop"
-
-  for entry in packaging/applications/*.desktop; do
-    install -Dm644 "$entry" "$pkgdir/usr/share/applications/$(basename "$entry")"
-  done
-
-  install -Dm644 branding/hypede-logo.svg \
-    "$pkgdir/usr/share/icons/hicolor/scalable/apps/hypede.svg"
-  install -Dm644 branding/hypede-symbolic.svg \
-    "$pkgdir/usr/share/icons/hicolor/symbolic/apps/hypede-symbolic.svg"
-
-  # Значки приложений среды кладутся в запасную тему hicolor: так они
-  # находятся при любой выбранной теме значков.
-  find assets/icons/hicolor -type f \( -name '*.svg' -o -name '*.png' \) |
-    while read -r icon; do
-      install -Dm644 "$icon" "$pkgdir/usr/share/icons/${icon#assets/icons/}"
-    done
-
-  # Обои и звуки среды.
-  for wallpaper in assets/wallpapers/*.png assets/wallpapers/*.svg; do
-    install -Dm644 "$wallpaper" \
-      "$pkgdir/usr/share/hypede/wallpapers/$(basename "$wallpaper")"
-  done
-  for sound in assets/sounds/*.wav; do
-    install -Dm644 "$sound" "$pkgdir/usr/share/hypede/sounds/$(basename "$sound")"
-  done
-
+  cd "$startdir/.."
+  make BUILD="$srcdir/build" PREFIX=/usr DESTDIR="$pkgdir" install
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
-  for doc in docs/*.md; do
-    install -Dm644 "$doc" "$pkgdir/usr/share/doc/$pkgname/$(basename "$doc")"
+  for doc in АРХИТЕКТУРА СБОРКА-И-ЗАПУСК НАСТРОЙКА ДОРОЖНАЯ-КАРТА; do
+    install -Dm644 "docs/$doc.md" "$pkgdir/usr/share/doc/$pkgname/$doc.md"
   done
 }

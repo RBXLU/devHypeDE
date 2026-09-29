@@ -89,7 +89,7 @@ pub fn asset_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Ищет файл ресурса, например `"wallpapers/bay.png"`.
+/// Ищет файл ресурса, например `"wallpapers/horizon-light.svg"`.
 pub fn find_asset(relative: &str) -> Option<PathBuf> {
     asset_dirs()
         .into_iter()
@@ -99,7 +99,7 @@ pub fn find_asset(relative: &str) -> Option<PathBuf> {
 
 /// Обои, которые среда ставит, пока пользователь не выбрал свои.
 pub fn default_wallpaper() -> Option<PathBuf> {
-    find_asset("wallpapers/bay.png")
+    find_asset("wallpapers/horizon-light.svg")
 }
 
 /// Каталоги, где лежат `.desktop`-файлы приложений, в порядке приоритета.

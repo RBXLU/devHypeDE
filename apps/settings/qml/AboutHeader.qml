@@ -74,12 +74,12 @@ Item {
             ChromeButton {
                 text: qsTr("Project page")
                 iconName: "web-browser-symbolic"
-                onClicked: System.openUrl("https://github.com/RBXLU/devHypeDE")
+                onClicked: System.openUrl("https://hypede.github.io")
             }
             ChromeButton {
                 text: qsTr("Report a problem")
                 iconName: "dialog-warning-symbolic"
-                onClicked: System.openUrl("https://github.com/RBXLU/devHypeDE/issues")
+                onClicked: System.openUrl("https://github.com/hypede/hypede/issues")
             }
         }
     }

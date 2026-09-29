@@ -929,7 +929,7 @@ class Window(Adw.ApplicationWindow):
             application_icon="dev.hypede.Files",
             developer_name="HypeDE",
             version=self.app.version,
-            website="https://github.com/RBXLU/devHypeDE",
+            website="https://hypede.github.io",
             license_type=Gtk.License.GPL_3_0,
             comments=_("File manager of the HypeDE desktop: the layout of GNOME Files with tabs and "
                        "a details pane inspired by COSMIC Files."),

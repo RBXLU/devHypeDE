@@ -13,6 +13,13 @@ PREFIX  ?= /usr
 DESTDIR ?=
 BUILD   ?= build
 
+# Сколько файлов компилировать одновременно. Каждый компилятор с заголовками
+# Qt и KDE занимает ~400 МБ, поэтому считаем от свободной памяти (по 700 МБ
+# на задание с запасом), но не больше числа ядер. Переопределить: make JOBS=2
+JOBS ?= $(shell awk -v cpus="$$(nproc 2>/dev/null || echo 1)" \
+	'/^MemAvailable:/ { j = int($$2 / 700000); if (j > cpus) j = cpus; if (j < 1) j = 1; print j }' \
+	/proc/meminfo 2>/dev/null || echo 1)
+
 DATADIR   := $(PREFIX)/share
 BINDIR    := $(PREFIX)/bin
 LIBDIR    := $(PREFIX)/lib
@@ -38,7 +45,8 @@ all: settings mo
 
 settings:
 	cmake -S apps/settings -B $(BUILD)/settings -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(PREFIX)
-	cmake --build $(BUILD)/settings --parallel
+	@echo "Сборка «Настроек», одновременных заданий: $(JOBS)"
+	cmake --build $(BUILD)/settings --parallel $(JOBS)
 
 mo: $(BUILD)/locale/ru/LC_MESSAGES/hypede.mo
 

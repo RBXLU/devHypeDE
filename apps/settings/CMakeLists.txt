@@ -63,6 +63,11 @@ qt_add_qml_module(hypede-settings
         src/system.h
 )
 
+# QML компилируется только в байт-код, без перевода в C++ (AOT): иначе на
+# каждый .qml появляется тяжёлый C++-файл, и сборка съедает гигабайты памяти.
+# Для окна настроек разница в скорости работы незаметна.
+set_target_properties(hypede-settings PROPERTIES QT_QMLCACHEGEN_ARGUMENTS "--only-bytecode")
+
 qt_add_translations(hypede-settings
     TS_FILES translations/hypede-settings_ru.ts
     RESOURCE_PREFIX /i18n

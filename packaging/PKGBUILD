@@ -41,12 +41,16 @@ optdepends=(
   'ptyxis: терминал для «Открыть в терминале»'
   'qadwaitadecorations-qt6: заголовок окна «Настроек» как у GTK-приложений'
 )
+# LTO и отладочные символы только раздувают память при сборке, а выигрыша
+# для окна настроек не дают. Число заданий Makefile считает сам по свободной
+# памяти; вручную: JOBS=2 makepkg -si
+options=('!lto' '!debug')
 provides=('hypede')
 conflicts=('hypede')
 
 build() {
   cd "$startdir/.."
-  make BUILD="$srcdir/build" PREFIX=/usr
+  make BUILD="$srcdir/build" PREFIX=/usr ${JOBS:+JOBS=$JOBS}
 }
 
 check() {

@@ -190,6 +190,35 @@
       <description>launcher — лаунчер (как клавиша «Все» в Chrome OS); overview — обзор окон.</description>
     </key>
 
+    <key name="lite-mode" type="b">
+      <default>false</default>
+      <summary>Лёгкий режим</summary>
+      <description>Для слабых компьютеров: без размытия под полкой и лаунчером, без скругления окон шейдером, без волн на экране блокировки и приветствия.</description>
+    </key>
+    <key name="greeting" type="s">
+      <choices>
+        <choice value="always"/>
+        <choice value="first"/>
+        <choice value="never"/>
+      </choices>
+      <default>'always'</default>
+      <summary>Приветствие при входе</summary>
+      <description>always — при каждом входе; first — только при первом; never — не показывать.</description>
+    </key>
+    <key name="greeting-shown" type="b">
+      <default>false</default>
+      <summary>Приветствие уже показывалось</summary>
+    </key>
+    <key name="window-corners" type="b">
+      <default>true</default>
+      <summary>Скруглять углы окон</summary>
+      <description>Окнам, которые не рисуют скругления и тень сами (Qt, Firefox, окна без рамки), HypeDE скругляет углы и добавляет тень.</description>
+    </key>
+    <key name="window-corner-radius" type="i">
+      <range min="0" max="24"/>
+      <default>12</default>
+      <summary>Радиус скругления окон</summary>
+    </key>
     <key name="window-animations" type="s">
       <choices>
         <choice value="hypede"/>
@@ -299,6 +328,33 @@
     <key name="show-support-card" type="b">
       <default>true</default>
       <summary>Показывать карточку поддержки проекта</summary>
+    </key>
+  </schema>
+
+  <!-- ИИ-помощник (apps/assistant). Выключен, пока его не включат в
+       «Настройках»: без этого нигде нет кнопок «Спросить…». -->
+  <schema id="dev.hypede.assistant" path="/dev/hypede/assistant/">
+    <key name="enabled" type="b">
+      <default>false</default>
+      <summary>ИИ-помощник включён</summary>
+    </key>
+    <key name="provider" type="s">
+      <choices>
+        <choice value="claude"/>
+        <choice value="gemini"/>
+        <choice value="mistral"/>
+        <choice value="chatgpt"/>
+        <choice value="grok"/>
+        <choice value="deepseek"/>
+      </choices>
+      <default>'claude'</default>
+      <summary>Провайдер</summary>
+      <description>Чей чат открывает помощник. Вход — в собственную учётную запись на сайте провайдера.</description>
+    </key>
+    <key name="panel-width" type="i">
+      <range min="320" max="900"/>
+      <default>440</default>
+      <summary>Ширина панели помощника</summary>
     </key>
   </schema>
 </schemalist>

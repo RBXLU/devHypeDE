@@ -352,6 +352,80 @@
   background-color: rgba(255, 255, 255, 0.14);
 }
 
+/* Плитки в духе Chrome OS (quicksettings.js): круг со значком, подпись
+   под ним, три колонки. */
+.quick-settings.hypede-chrome .quick-settings-grid {
+  spacing-rows: 14px;
+  spacing-columns: 4px;
+}
+.quick-settings .hypede-tile.quick-toggle,
+.quick-settings .hypede-tile.quick-toggle-has-menu,
+.quick-settings .hypede-tile .quick-toggle,
+.quick-settings .hypede-tile .quick-toggle:hover,
+.quick-settings .hypede-tile .quick-toggle:checked,
+.quick-settings .hypede-tile.quick-toggle:hover,
+.quick-settings .hypede-tile.quick-toggle:checked {
+  background-color: transparent;
+  color: #e3e3e3;
+  border-radius: 16px;
+  min-height: 0;
+  padding: 2px 0;
+}
+.quick-settings .hypede-tile .quick-toggle-icon {
+  icon-size: 20px;
+  padding: 14px;
+  margin-bottom: 6px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #e3e3e3;
+  transition-duration: 150ms;
+}
+.quick-settings .hypede-tile .quick-toggle:hover .quick-toggle-icon,
+.quick-settings .hypede-tile.quick-toggle:hover .quick-toggle-icon {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+.quick-settings .hypede-tile .quick-toggle:checked .quick-toggle-icon,
+.quick-settings .hypede-tile.quick-toggle:checked .quick-toggle-icon {
+  background-color: st-mix(-st-accent-color, #ffffff, 45%);
+  color: st-mix(-st-accent-color, #000000, 30%);
+}
+.quick-settings .hypede-tile .quick-toggle:checked:hover .quick-toggle-icon,
+.quick-settings .hypede-tile.quick-toggle:checked:hover .quick-toggle-icon {
+  background-color: st-mix(-st-accent-color, #ffffff, 38%);
+}
+.quick-settings .hypede-tile .quick-toggle-title {
+  font-size: 9.5pt;
+  font-weight: normal;
+}
+.quick-settings .hypede-tile .quick-toggle-subtitle {
+  font-size: 8.5pt;
+  color: #c4c7c5;
+}
+.quick-settings .hypede-tile .hypede-tile-menu-button,
+.quick-settings .hypede-tile .hypede-tile-menu-button:hover,
+.quick-settings .hypede-tile .hypede-tile-menu-button:checked {
+  background-color: transparent;
+  color: #e3e3e3;
+  padding: 0 0 0 2px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 999px;
+}
+.quick-settings .hypede-tile .hypede-tile-menu-button StIcon {
+  icon-size: 16px;
+}
+
+/* Кнопка ИИ-помощника в строке поиска лаунчера */
+.hypede-launcher-ask {
+  icon-size: 20px;
+  padding: 6px;
+  border-radius: 999px;
+  color: st-mix(-st-accent-color, #ffffff, 55%);
+}
+.hypede-launcher-ask:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
 /* Календарь и центр уведомлений */
 .datemenu-popover,
 #calendarArea {
@@ -699,4 +773,24 @@
   font-size: 16pt;
   font-weight: 600;
   color: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Приветствие при входе (greeting.js)                                 */
+/* ------------------------------------------------------------------ */
+
+.hypede-greeting {
+  color: #ffffff;
+  padding-bottom: 48px;
+}
+.hypede-greeting-title {
+  font-size: 44pt;
+  font-weight: 300;
+}
+.hypede-greeting-subtitle {
+  font-size: 15pt;
+  margin-top: 14px;
+}
+.hypede-greeting-hint {
+  font-size: 10.5pt;
 }

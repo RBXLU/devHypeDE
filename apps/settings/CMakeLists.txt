@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(hypede-settings VERSION 2.0.0 LANGUAGES CXX)
+project(hypede-settings VERSION 2.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -64,6 +64,8 @@ qt_add_qml_module(hypede-settings
         qml/AutostartBlock.qml
         qml/ConfigBlock.qml
         qml/SupportCard.qml
+        qml/ThinScrollBar.qml
+        qml/AssistantBlock.qml
     SOURCES
         src/kcmhost.h
         src/gsettingsobject.h

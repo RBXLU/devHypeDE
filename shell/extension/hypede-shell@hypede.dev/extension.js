@@ -22,7 +22,12 @@ import {Launcher} from './launcher.js';
 import {OverviewTweaks} from './overview.js';
 import {NotificationTweaks} from './notifications.js';
 import {WindowAnimations} from './windows.js';
+import {WindowCorners} from './corners.js';
+import {ChromeQuickSettings} from './quicksettings.js';
+import {Assistant} from './assistant.js';
+import {Greeting} from './greeting.js';
 import {LockScreen} from './lockscreen.js';
+import {setupLocker} from './locker.js';
 
 // Запущены ли мы в сеансе HypeDE (а не включены вручную в обычном GNOME).
 function inHypeDESession() {
@@ -34,23 +39,32 @@ export default class HypeDEShellExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
 
-        if (inHypeDESession())
+        if (inHypeDESession()) {
             this._guard = new ExtensionGuard(this.uuid, this.getSettings('dev.hypede.session'));
+            // Без GDM у GNOME нет экрана блокировки — HypeDE создаёт его сам.
+            setupLocker();
+        }
 
         this._style = new StyleManager(this._settings);
+        // Помощник — раньше лаунчера: лаунчер спрашивает, включён ли он.
+        this._assistant = new Assistant();
         this._launcher = new Launcher(this._settings);
         this._shelf = new Shelf(this._settings, this._launcher);
         this._overview = new OverviewTweaks(this._settings, this._launcher);
         this._notifications = new NotificationTweaks(this._settings);
         this._windows = new WindowAnimations(this._settings);
+        this._corners = new WindowCorners(this._settings);
+        this._quickSettings = new ChromeQuickSettings();
         this._lock = new LockScreen(this._settings, this._shelf);
+        if (inHypeDESession())
+            this._greeting = new Greeting(this._settings);
     }
 
     disable() {
         // Порядок обратный: полка держит кнопку лаунчера, поэтому уходит
         // раньше самого лаунчера.
-        for (const part of ['_lock', '_windows', '_notifications', '_overview',
-            '_shelf', '_launcher', '_style', '_guard']) {
+        for (const part of ['_greeting', '_lock', '_quickSettings', '_corners', '_windows', '_notifications', '_overview',
+            '_shelf', '_launcher', '_assistant', '_style', '_guard']) {
             this[part]?.destroy();
             this[part] = null;
         }

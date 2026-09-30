@@ -26,15 +26,16 @@ import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js'
 
 import {evaluate as calculate, looksLikeMath} from './calculator.js';
 import {loadRecentFiles, describeWhen} from './recent.js';
+import {getFileIndex, destroyFileIndex, normalize as normalizeName} from './filesearch.js';
 import {addSecondaryClick} from './util.js';
+import {getAssistant} from './assistant.js';
 
 const RESULT_ICON_SIZE = 32;
 const MAX_APP_RESULTS = 6;
-const MAX_FILE_RESULTS = 4;
+const MAX_FILE_RESULTS = 5;
 const MAX_SETTINGS_RESULTS = 3;
 const MAX_CONTINUE_ITEMS = 4;
 const BUBBLE_MAX_HEIGHT = 688;
-const STAGGER_LIMIT = 30;
 
 const SETTINGS_APP_ID = 'dev.hypede.Settings.desktop';
 const FILES_APP_ID = 'dev.hypede.Files.desktop';
@@ -65,6 +66,8 @@ const SETTINGS_PAGES = [
         name: () => _('Security and privacy'), keywords: 'privacy security lock screen firewall приватность безопасность блокировка'},
     {id: 'apps', icon: 'view-app-grid-symbolic',
         name: () => _('Apps'), keywords: 'apps default applications autostart flatpak notifications приложения по умолчанию автозапуск уведомления'},
+    {id: 'assistant', icon: 'hypede-assistant-symbolic',
+        name: () => _('AI assistant'), keywords: 'ai assistant chat claude gemini chatgpt mistral grok deepseek ии помощник нейросеть'},
     {id: 'accessibility', icon: 'org.gnome.Settings-accessibility-symbolic',
         name: () => _('Accessibility'), keywords: 'accessibility zoom contrast screen reader большой текст контраст доступность'},
     {id: 'system', icon: 'preferences-system-symbolic',
@@ -235,22 +238,6 @@ function _section(title) {
     return box;
 }
 
-// Плавное появление набора актёров «волной» — один за другим.
-function _stagger(actors, {dy = 12, step = 12, duration = 260} = {}) {
-    actors.slice(0, STAGGER_LIMIT).forEach((actor, i) => {
-        actor.remove_all_transitions();
-        actor.opacity = 0;
-        actor.translation_y = dy;
-        actor.ease({
-            opacity: 255,
-            translation_y: 0,
-            delay: i * step,
-            duration,
-            mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
-        });
-    });
-}
-
 // Содержимое лаунчера.
 const LauncherView = GObject.registerClass(
 class LauncherView extends St.BoxLayout {
@@ -278,6 +265,15 @@ class LauncherView extends St.BoxLayout {
                 style_class: 'hypede-launcher-search-icon',
             }),
         });
+        // Кнопка ИИ-помощника справа в строке поиска — если он включён.
+        this._askIcon = new St.Icon({
+            icon_name: 'hypede-assistant-symbolic',
+            style_class: 'hypede-launcher-ask',
+            reactive: true,
+            track_hover: true,
+        });
+        this._entry.connect('secondary-icon-clicked', () => this._ask(this._entry.text));
+        this._syncAssistant();
         this._entry.clutter_text.connect('text-changed', () => this._onTextChanged());
         this._entry.clutter_text.connect('key-press-event', this._onEntryKeyPress.bind(this));
         this._entry.clutter_text.connect('activate', () => this._activateSelected());
@@ -401,14 +397,36 @@ class LauncherView extends St.BoxLayout {
         global.stage.set_key_focus(this._entry);
     }
 
-    // Появление: плитки поднимаются «волной» одна за другой.
+    // «Спросить Claude»: подпись и видимость — по настройкам помощника.
+    _syncAssistant() {
+        const assistant = getAssistant();
+        const enabled = !!assistant?.enabled;
+        this._entry.secondary_icon = enabled ? this._askIcon : null;
+        if (enabled)
+            this._askIcon.accessible_name = _('Ask %s').format(assistant.providerName);
+    }
+
+    _ask(text) {
+        this._launcher.close();
+        getAssistant()?.ask(text.trim());
+    }
+
+    // Появление вместе с пузырём: содержимое видно сразу и только чуть
+    // поднимается — без пустого кадра и «волны» плиток. Полноэкранный
+    // лаунчер выезжает снизу, как в Chrome OS.
     _animateIn() {
-        const tiles = [
-            ...this._continueGrid.get_children(),
-            ...this._grid.get_children(),
-        ];
-        _stagger([this._entryBin], {dy: 8, duration: 220});
-        _stagger(tiles, {dy: this._fullscreen ? 24 : 14, step: this._fullscreen ? 10 : 8});
+        const rise = this._fullscreen ? 48 : 12;
+        for (const actor of [this._entryBin, this._homeScroll, this._resultsScroll]) {
+            actor.remove_all_transitions();
+            actor.opacity = 255;
+        }
+        this.remove_all_transitions();
+        this.translation_y = rise;
+        this.ease({
+            translation_y: 0,
+            duration: this._fullscreen ? 280 : 220,
+            mode: Clutter.AnimationMode.EASE_OUT_QUINT,
+        });
     }
 
     _updateSize() {
@@ -562,10 +580,29 @@ class LauncherView extends St.BoxLayout {
     _search(text) {
         this._clearResults();
         const providers = this._settings.get_strv('launcher-search-providers');
+        providers.push('assistant');
+        const sections = new Map();
         for (const provider of providers) {
             const section = this[`_search_${provider}`]?.(text, _normalize(text));
             if (section)
-                this._resultsBox.add_child(section);
+                sections.set(provider, section);
+        }
+        // Если ни приложений, ни разделов настроек, ни файлов не нашлось,
+        // поиск в интернете поднимается наверх: тогда Enter ищет в
+        // интернете, а не открывает «Файлы».
+        let order = [...sections.keys()];
+        if (sections.has('web') && !sections.has('apps') && !sections.has('settings') &&
+            !sections.get('files')?._matches)
+            order = ['calculator', 'web', ...order.filter(p => p !== 'calculator' && p !== 'web')];
+
+        this._results = [];
+        for (const provider of order) {
+            const section = sections.get(provider);
+            if (!section)
+                continue;
+            this._resultsBox.add_child(section);
+            // Порядок строк для стрелок и Enter — как на экране.
+            this._results.push(...section.get_children().filter(c => c instanceof ResultRow));
         }
         this._select(0);
     }
@@ -586,6 +623,22 @@ class LauncherView extends St.BoxLayout {
                 St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, `${value}`);
                 this._launcher.close();
             },
+        }));
+        return section;
+    }
+
+    // Вопрос ИИ-помощнику — последней строкой: Enter по-прежнему открывает
+    // найденное или ищет в интернете.
+    _search_assistant(text) {
+        const assistant = getAssistant();
+        if (!assistant?.enabled)
+            return null;
+        const section = _section(null);
+        section.add_child(this._addResult({
+            iconName: 'hypede-assistant-symbolic',
+            title: text,
+            subtitle: _('Ask %s').format(assistant.providerName),
+            activate: () => this._ask(text),
         }));
         return section;
     }
@@ -641,26 +694,49 @@ class LauncherView extends St.BoxLayout {
         return section;
     }
 
-    // Файлы: совпадения среди недавних и поиск в «Файлах».
+    // Файлы: недавние и найденные в домашней папке, плюс поиск в «Файлах».
     _search_files(text, query) {
-        const recent = loadRecentFiles(200)
-            .filter(file => _normalize(file.name).includes(query))
-            .slice(0, MAX_FILE_RESULTS);
+        const seen = new Set();
+        const found = [];
+        for (const file of loadRecentFiles(200)) {
+            if (found.length >= MAX_FILE_RESULTS)
+                break;
+            if (normalizeName(file.name).includes(query) && !seen.has(file.path)) {
+                seen.add(file.path);
+                found.push({path: file.path, name: file.name, parent: file.parentPath, gicon: file.icon});
+            }
+        }
+        for (const {path, isDir} of getFileIndex().search(query, MAX_FILE_RESULTS * 2)) {
+            if (found.length >= MAX_FILE_RESULTS)
+                break;
+            if (seen.has(path))
+                continue;
+            seen.add(path);
+            const name = GLib.path_get_basename(path);
+            const type = isDir ? 'inode/directory' : Gio.content_type_guess(name, null)[0];
+            found.push({path, name, parent: GLib.path_get_dirname(path),
+                gicon: Gio.content_type_get_symbolic_icon(type)});
+        }
+
         const filesApp = this._appSystem.lookup_app(FILES_APP_ID);
-        if (recent.length === 0 && !filesApp)
+        if (found.length === 0 && !filesApp)
             return null;
+        const home = GLib.get_home_dir();
         const section = _section(_('Files'));
-        recent.forEach(file => {
+        section._matches = found.length;
+        for (const file of found) {
+            const parent = file.parent === home ? '~'
+                : file.parent.startsWith(`${home}/`) ? `~${file.parent.slice(home.length)}` : file.parent;
             section.add_child(this._addResult({
-                gicon: file.icon,
+                gicon: file.gicon,
                 title: file.name,
-                subtitle: file.parentPath,
+                subtitle: parent,
                 activate: () => {
                     this._launcher.close();
-                    _launchUri(file.uri);
+                    _launchUri(Gio.File.new_for_path(file.path).get_uri());
                 },
             }));
-        });
+        }
         if (filesApp) {
             section.add_child(this._addResult({
                 gicon: filesApp.get_icon(),
@@ -676,24 +752,35 @@ class LauncherView extends St.BoxLayout {
     }
 
     _search_web(text) {
+        const template = this._settings.get_string('web-search-url');
+        const url = template.replace('%s', encodeURIComponent(text));
+        const browser = Gio.AppInfo.get_default_for_uri_scheme('https');
+        // «Google», «Duckduckgo», «Yandex» — из адреса поисковика.
+        let engine = '';
+        try {
+            engine = GLib.Uri.parse(url, GLib.UriFlags.NONE).get_host() ?? '';
+        } catch {
+            // адрес без хоста — подпись будет общей
+        }
+        engine = engine.replace(/^www\./, '').replace(/\.[a-z]+$/, '');
+        engine = engine.charAt(0).toUpperCase() + engine.slice(1);
         const section = _section(_('Web'));
         section.add_child(this._addResult({
+            gicon: browser?.get_icon() ?? null,
             iconName: 'web-browser-symbolic',
             title: text,
-            subtitle: _('Search the web'),
+            // Translators: "Search with Google".
+            subtitle: engine ? _('Search with %s').format(engine) : _('Search the web'),
             activate: () => {
                 this._launcher.close();
-                const template = this._settings.get_string('web-search-url');
-                _launchUri(template.replace('%s', encodeURIComponent(text)));
+                _launchUri(url);
             },
         }));
         return section;
     }
 
     _addResult(params) {
-        const row = new ResultRow(params);
-        this._results.push(row);
-        return row;
+        return new ResultRow(params);
     }
 
     _select(index) {
@@ -781,7 +868,10 @@ class LauncherButton extends PanelMenu.Button {
                 mode: Clutter.AnimationMode.EASE_OUT_BACK,
             });
             if (open) {
+                if (this._settings.get_strv('launcher-search-providers').includes('files'))
+                    getFileIndex().refresh();
                 this._prepareOpen();
+                this.view._syncAssistant();
                 this.view.onOpen();
                 // Фокус в строку поиска — после того, как меню заберёт ввод.
                 GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
@@ -814,7 +904,7 @@ class LauncherButton extends PanelMenu.Button {
         else
             this.menu.actor.remove_style_class_name('fullscreen');
 
-        const blur = this._settings.get_boolean('launcher-blur');
+        const blur = this._settings.get_boolean('launcher-blur') && !this._settings.get_boolean('lite-mode');
         const target = boxPointer.bin;
         if (blur && !target.get_effect('hypede-blur'))
             target.add_effect_with_name('hypede-blur', this._blur);
@@ -887,6 +977,7 @@ export class Launcher {
     }
 
     destroy() {
+        destroyFileIndex();
         global.display.disconnectObject(this);
         this._settings.disconnectObject?.(this);
         this._appMenu?.destroy();

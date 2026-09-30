@@ -1,121 +1,121 @@
 <p align="center">
-  <img src="docs/images/логотип.png" alt="HypeDE" width="420">
+  <img src="docs/images/logo.png" alt="HypeDE" width="420">
 </p>
 
 <p align="center">
-  <b>GNOME в облике Chrome OS.</b><br>
-  Полка внизу, лаунчер-«пузырь», трей с быстрыми настройками — на чистом GNOME Shell 50.<br>
-  «Настройки» — модули KDE в интерфейсе Chrome OS. «Файлы» — смесь GNOME Files и COSMIC Files.
+  A Chrome OS–style desktop built on GNOME Shell.<br>
+  <a href="README.ru.md">Русский</a> · <a href="https://hypede.github.io">Website</a>
 </p>
 
 <p align="center">
-  <img src="docs/images/launcher-light.png" alt="Лаунчер HypeDE" width="760">
+  <img src="docs/images/launcher-light.png" alt="HypeDE launcher" width="760">
 </p>
 
----
+HypeDE is a separate session installed next to regular GNOME. No GNOME
+package is modified: your login screen gets a “HypeDE” entry, and the normal
+GNOME session keeps working as before.
 
-## Что это
+## What's included
 
-HypeDE 1.0 — отдельный сеанс поверх **нетронутого** GNOME: пакеты GNOME
-не патчатся и не заменяются. На экране входа появляется пункт «HypeDE»,
-а обычный сеанс GNOME на той же машине остаётся как был.
+- **Shelf** at the bottom, side or top: pinned and running apps, the
+  launcher, date, time and status area. It can float, hide under windows,
+  and change size and opacity.
+- **Launcher**, compact next to the shelf or full screen. Searches apps,
+  settings, files in your home folder and the web, and does arithmetic.
+- **Quick settings** as round buttons in three columns, like Chrome OS.
+- **Lock screen** with a large clock, battery and load cards and a wave
+  animation. Works without GDM too: SDDM, greetd and LightDM.
+- **Settings** in Qt/QML. Network, Bluetooth, sound, printers and users are
+  KDE modules shown inside the window; displays, mouse, keyboard,
+  appearance, shelf, lock screen and services are HypeDE's own pages.
+- **Files** in GTK 4: sidebar and path bar like GNOME Files, tabs and a
+  details pane like COSMIC Files.
+- **AI assistant** (optional): a side panel with Claude, Gemini, Mistral,
+  ChatGPT, Grok or DeepSeek. You sign in with your own account on the
+  provider's website; no API keys. “Ask” buttons live in the launcher,
+  Files and Settings. The assistant cannot run commands.
+- Its own icon theme (Material Symbols), sounds, wallpapers and a greeting
+  at sign-in.
 
-| Часть | Из чего сделана | Что умеет |
-|---|---|---|
-| **Оболочка** | GNOME Shell 48–50 + свой режим сеанса и расширение `hypede-shell` | полка внизу, кольцо лаунчера, закреплённые и запущенные приложения с точкой-индикатором, трей «дата + статус + время», быстрые настройки и календарь открываются вверх, уведомления справа внизу, автоскрытие полки, клавиша Super открывает лаунчер |
-| **Лаунчер** | часть расширения | поиск по приложениям, разделам настроек и недавним файлам, калькулятор (`12*(3+4)` → 84), поиск в интернете, «Продолжить с того же места», сетка всех приложений |
-| **Настройки** | Qt 6 / QML + **модули KDE (KCM)** через KCMUtils | интерфейс «Настроек» Chrome OS; сеть, Bluetooth, звук, принтеры, пользователи, приложения по умолчанию, автозапуск, Flatpak — настоящие модули KDE прямо в карточке; мышь, клавиатура, ночной режим, питание, обои, тема, акцент, полка — через GSettings |
-| **Файлы** | Python + GTK 4 + libadwaita | раскладка GNOME Files (боковая панель, «крошки» пути, поиск, двойной клик, плашка выделения) + вкладки и панель сведений из COSMIC Files; сетка с эскизами и список, рамка выделения, перетаскивание, копирование с прогрессом и отменой, корзина с восстановлением |
-
-Все обои, значки и тексты — **свои**: ассеты и шрифты Google проприетарны,
-в проекте их нет. Облик повторяет раскладку и поведение Chrome OS, но
-нарисован заново.
-
-## Как это выглядит
+## Screenshots
 
 <p align="center">
-  <img src="docs/images/files-light.png" alt="Файлы" width="760">
-  <img src="docs/images/settings-light.png" alt="Настройки: персонализация" width="760">
-  <img src="docs/images/settings-kcm-dark.png" alt="Модуль KDE внутри Настроек, тёмная тема" width="760">
-  <img src="docs/images/launcher-calc-light.png" alt="Калькулятор в лаунчере" width="760">
-  <img src="docs/images/quick-settings-dark.png" alt="Быстрые настройки, тёмная тема" width="760">
+  <img src="docs/images/settings-light.png" alt="Settings" width="760">
+  <img src="docs/images/settings-assistant-dark.png" alt="AI assistant in Settings" width="760">
+  <img src="docs/images/quick-settings-dark.png" alt="Quick settings" width="760">
+  <img src="docs/images/files-light.png" alt="Files" width="760">
+  <img src="docs/images/lock-prompt-dark.png" alt="Lock screen" width="760">
+  <img src="docs/images/shelf-left-dark.png" alt="Shelf on the left" width="760">
 </p>
 
-Скриншоты сняты в настоящем GNOME Shell 50.5 с KDE Frameworks 6.30 (Arch
-Linux) скриптом `tools/dev/screenshots.sh`.
-
-## Установка на CachyOS и Arch
+## Install on Arch Linux and CachyOS
 
 ```bash
-git clone https://github.com/RBXLU/devHypeDE
-cd devHypeDE/packaging
+git clone https://github.com/hypede/hypede
+cd hypede/packaging
 makepkg -si
 ```
 
-Выйдите из системы и выберите на экране входа сеанс **HypeDE**.
+Log out and pick the HypeDE session on the login screen.
 
-Модули KDE ставятся по желанию — без них соответствующая строка в
-«Настройках» просто подскажет, какой пакет нужен:
+KDE modules for Settings are optional. When one is missing, its row in
+Settings names the package to install:
 
 ```bash
 sudo pacman -S plasma-nm bluedevil plasma-pa print-manager plasma-workspace \
                plasma-desktop kde-cli-tools flatpak-kcm kinfocenter power-profiles-daemon
 ```
 
-Подробности, сборка без пакета и запуск из исходников — в
-[СБОРКА-И-ЗАПУСК.md](docs/СБОРКА-И-ЗАПУСК.md).
+The AI assistant needs `webkitgtk-6.0`; GTK-style title bars for Qt apps
+need `qadwaitadecorations-qt6` (AUR).
 
-### Попробовать только полку в обычном GNOME
+## Keys
 
-```bash
-make install-user
-# перезайти в сеанс, затем:
-gnome-extensions enable hypede-shell@hypede.dev
-```
-
-## Горячие клавиши
-
-| Сочетание | Действие |
+| Shortcut | Action |
 |---|---|
-| `Super` | лаунчер (можно переназначить на обзор в «Настройках») |
-| `Super+S` | обзор окон и рабочих столов |
-| `Super+1…9` | закреплённое на полке приложение по номеру |
-| `Super+Space` | следующая раскладка |
-| В «Файлах» | `Ctrl+T` вкладка, `Ctrl+L` адрес, `Ctrl+F` поиск, `Ctrl+I` сведения, `F2` переименовать, `Ctrl+1/2` сетка/список, `F1` справка по клавишам |
+| Super | launcher |
+| Super+S | overview |
+| Super+L | lock the screen |
+| Super+1…9 | open the n-th app on the shelf |
+| Super+Space | next keyboard layout |
 
-## Как устроено
+## How it works
+
+HypeDE keeps its own settings database (`~/.config/dconf/hypede`), so
+wallpaper, theme and shelf never mix with regular GNOME. On first sign-in it
+copies keyboard layouts, mouse, touchpad, accessibility and shortcuts.
+
+Extensions enabled for regular GNOME are not loaded unless you allow them in
+Settings. The session starts only the GNOME services it needs; the file
+indexer, GNOME Software and others can be enabled in Settings.
+
+Without GDM, HypeDE creates GNOME's lock screen itself and checks the
+password through PAM (`/usr/lib/hypede/hypede-auth`, service
+`/etc/pam.d/hypede`).
 
 ```
-shell/modes/hypede.json        режим GNOME Shell: панель → полка, свой набор расширений
-shell/extension/…              расширение: полка, лаунчер, обзор, уведомления
-shell/theme/stylesheet.css.in  тема оболочки (светлая и тёмная из одного шаблона)
-session/                       сеанс для экрана входа и gnome-session (systemd)
-data/                          схема настроек, значения по умолчанию, .desktop-файлы
-apps/settings/                 «Настройки»: C++/QML, KCMUtils, GSettings, D-Bus
-apps/files/                    «Файлы»: Python, GTK 4, libadwaita
-po/, tools/i18n/               русский перевод
+shell/extension/   shell: shelf, launcher, quick settings, lock screen
+session/           session startup, systemd units, password check
+apps/settings/     Settings (C++, QML, KCMUtils)
+apps/files/        Files (Python, GTK 4)
+apps/assistant/    AI assistant (Python, WebKitGTK)
+data/              schemas, icons, sounds, wallpapers
+tools/             generators for themes, icons, sounds and screenshots
 ```
 
-Подробно — в [АРХИТЕКТУРА.md](docs/АРХИТЕКТУРА.md), все настройки — в
-[НАСТРОЙКА.md](docs/НАСТРОЙКА.md), планы — в
-[ДОРОЖНАЯ-КАРТА.md](docs/ДОРОЖНАЯ-КАРТА.md).
+## Limitations
 
-## Честно о границах
+- KDE modules that configure KWin, KScreen or PowerDevil do nothing under
+  GNOME, so displays, mouse, keyboard and power have HypeDE pages instead.
+- Arranging several monitors still opens `gnome-control-center display`.
+- Tested on GNOME Shell 50.5 with KDE Frameworks 6.30.
 
-* **Модули KDE работают те, что говорят со стандартными службами**
-  (NetworkManager, BlueZ, PipeWire, CUPS, AccountsService, mimeapps.list,
-  XDG-автозапуск, Flatpak). Модули, которые настраивают KWin, KScreen или
-  PowerDevil (экраны, мышь, питание, раскладки KDE), под GNOME ничего бы не
-  меняли — эти разделы сделаны на GSettings, которыми управляет GNOME.
-* **Расположение мониторов** пока открывается в «Настройках» GNOME
-  (`gnome-control-center display`): у Mutter свой протокол, который модуль KDE
-  не понимает.
-* Сопряжение Bluetooth-устройств с PIN-кодом использует агента bluedevil;
-  если его нет, пригодится `bluetoothctl`.
-* Поддерживаются GNOME 48–50; проверено на 50.5.
+## Support
 
-## Старая версия
+[Ko-fi](https://ko-fi.com/pycodder)
 
-Предыдущая попытка — собственный композитор на Rust (каталог `crates/` и
-старые файлы в `packaging/`) — в сборку 1.0 не входит и сохранена в истории
-как есть.
+## License
+
+[GPL-3.0-or-later](LICENSE). Material Symbols icons are Apache 2.0
+(`data/icons/HypeDE/LICENSE`). The KDE colour schemes in
+`apps/settings/colors/` are based on Breeze.

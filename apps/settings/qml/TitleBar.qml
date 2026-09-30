@@ -1,11 +1,24 @@
 import QtQuick
+import HypeSettings
 
 // Заголовок окна: название, поиск по центру и кнопки окна справа.
 // Пустое место заголовка перетаскивает окно, двойной клик — разворачивает.
 Item {
     id: bar
     property alias searchText: search.text
+    // Раздел, о котором спрашивать ИИ-помощника.
+    property string pageTitle: ""
     signal searchAccepted()
+
+    readonly property var assistant: GSettingsHub.schema("dev.hypede.assistant")
+    readonly property bool assistantOn: assistant.valid && assistant.revision >= 0
+                                        && assistant.value("enabled") === true
+                                        && System.hasProgram("hypede-assistant")
+    readonly property string assistantName: {
+        const names = { claude: "Claude", gemini: "Gemini", mistral: "Mistral",
+                        chatgpt: "ChatGPT", grok: "Grok", deepseek: "DeepSeek" }
+        return assistant.revision >= 0 ? (names[assistant.value("provider")] || "Claude") : "Claude"
+    }
     function focusSearch() { search.focusField() }
 
     implicitHeight: 64
@@ -39,55 +52,49 @@ Item {
 
     SearchField {
         id: search
-        width: Math.min(560, bar.width - 2 * 260)
+        width: Math.min(560, bar.width - 2 * (askButton.visible ? 380 : 240))
         anchors.centerIn: parent
         visible: width > 160
         onAccepted: bar.searchAccepted()
     }
 
-    Row {
-        visible: appWindow.frameless
-        anchors.right: parent.right
+    // «Спросить Claude» — вопрос о текущем разделе настроек.
+    ChromeButton {
+        id: askButton
+        visible: bar.assistantOn
+        anchors.right: windowButtons.visible ? windowButtons.left : parent.right
         anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 4
-        // Кнопки окна рисуются фигурами, а не значками темы: у разных тем
-        // «свернуть» бывает и чертой, и стрелкой.
+        iconName: "hypede-assistant-symbolic"
+        text: qsTr("Ask %1").arg(bar.assistantName)
+        onClicked: System.run(["hypede-assistant", "--prompt",
+                               qsTr("Question about HypeDE settings, section “%1”: ").arg(bar.pageTitle)])
+    }
+
+    Row {
+        id: windowButtons
+        visible: appWindow.frameless
+        anchors.right: parent.right
+        anchors.rightMargin: 14
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 2
         Repeater {
             model: ["minimize", "maximize", "close"]
             delegate: Rectangle {
                 id: windowButton
                 required property string modelData
-                width: 32; height: 32
-                radius: 16
-                color: buttonMouse.containsMouse ? Theme.hover : "transparent"
+                width: 36; height: 36
+                radius: 18
+                color: buttonMouse.pressed ? Theme.pressed : (buttonMouse.containsMouse ? Theme.hover : "transparent")
+                Behavior on color { ColorAnimation { duration: Theme.fast } }
 
-                Rectangle {
-                    visible: windowButton.modelData === "minimize"
+                SymbolIcon {
                     anchors.centerIn: parent
-                    anchors.verticalCenterOffset: 4
-                    width: 11; height: 1.5
-                    color: Theme.text
-                }
-                Rectangle {
-                    visible: windowButton.modelData === "maximize"
-                    anchors.centerIn: parent
-                    width: appWindow.maximized ? 9 : 11
-                    height: width
-                    radius: 2
-                    color: "transparent"
-                    border.width: 1.5
-                    border.color: Theme.text
-                }
-                Repeater {
-                    model: windowButton.modelData === "close" ? [45, -45] : []
-                    delegate: Rectangle {
-                        required property int modelData
-                        anchors.centerIn: parent
-                        width: 14; height: 1.5
-                        rotation: modelData
-                        color: Theme.text
-                    }
+                    width: 20; height: 20
+                    tint: Theme.text
+                    source: windowButton.modelData === "minimize" ? "window-minimize-symbolic"
+                          : windowButton.modelData === "close" ? "window-close-symbolic"
+                          : appWindow.maximized ? "window-restore-symbolic" : "window-maximize-symbolic"
                 }
                 MouseArea {
                     id: buttonMouse

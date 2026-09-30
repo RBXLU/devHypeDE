@@ -1,17 +1,18 @@
 # Пакет HypeDE для Arch Linux и CachyOS.
 #
 # Сборка и установка из каталога с исходниками:
-#   cd packaging && makepkg -si
+#   git clone https://github.com/hypede/hypede && cd hypede/packaging && makepkg -si
 #
 # После установки выйдите из системы: в списке сеансов экрана входа
 # (GDM, SDDM, greetd…) появится «HypeDE».
 
 pkgname=hypede-git
-pkgver=2.0.0
+pkgver=2.1.0
 pkgrel=1
-pkgdesc="HypeDE — GNOME в облике Chrome OS: полка, лаунчер, «Файлы» и «Настройки» на модулях KDE"
+pkgdesc="HypeDE — рабочий стол в стиле Chrome OS на основе GNOME Shell"
+backup=('etc/pam.d/hypede')
 arch=('x86_64' 'aarch64')
-url="https://github.com/RBXLU/devHypeDE"
+url="https://github.com/hypede/hypede"
 license=('GPL-3.0-or-later')
 
 depends=(
@@ -39,7 +40,8 @@ optdepends=(
   'power-profiles-daemon: переключатель режима питания'
   'gnome-control-center: настройка мониторов (расположение и масштаб)'
   'ptyxis: терминал для «Открыть в терминале»'
-  'qadwaitadecorations-qt6: заголовок окна «Настроек» как у GTK-приложений'
+  'qadwaitadecorations-qt6: заголовки окон приложений Qt как у GTK-приложений'
+  'webkitgtk-6.0: ИИ-помощник (чат Claude, Gemini, Mistral, ChatGPT, Grok, DeepSeek)'
 )
 # LTO и отладочные символы только раздувают память при сборке, а выигрыша
 # для окна настроек не дают. Число заданий Makefile считает сам по свободной
@@ -63,10 +65,8 @@ package() {
   cd "$startdir/.."
   make BUILD="$srcdir/build" PREFIX=/usr DESTDIR="$pkgdir" install
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
-  # В пакете — латинские имена: bsdtar при упаковке не всегда переводит
-  # кириллицу в путях в UTF-8 и выбрасывает такие файлы.
-  install -Dm644 docs/АРХИТЕКТУРА.md "$pkgdir/usr/share/doc/$pkgname/architecture.md"
-  install -Dm644 docs/СБОРКА-И-ЗАПУСК.md "$pkgdir/usr/share/doc/$pkgname/building.md"
-  install -Dm644 docs/НАСТРОЙКА.md "$pkgdir/usr/share/doc/$pkgname/configuration.md"
-  install -Dm644 docs/ДОРОЖНАЯ-КАРТА.md "$pkgdir/usr/share/doc/$pkgname/roadmap.md"
+  for doc in docs/ru/*.md; do
+    install -Dm644 "$doc" "$pkgdir/usr/share/doc/$pkgname/ru/$(basename "$doc")"
+  done
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

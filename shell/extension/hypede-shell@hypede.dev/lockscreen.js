@@ -7,9 +7,9 @@
 // раскрываются карточки с зарядом и загрузкой системы. После ввода пароля
 // экран «сворачивается» и тает.
 //
-// Проверку пароля, уведомления, медиаплеер и выбор пользователя по-прежнему
-// делает родной экран блокировки GNOME — HypeDE только меняет его облик и
-// анимации.
+// Уведомления, медиаплеер и выбор пользователя по-прежнему показывает родной
+// экран блокировки GNOME — HypeDE только меняет его облик и анимации.
+// Пароль проверяет GDM, а без него — hypede-auth (см. locker.js).
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -20,6 +20,8 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import {InjectionManager, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
+
+import {getShield} from './locker.js';
 
 const INTRO_TIME = 1100;
 const REVEAL_TIME = 420;
@@ -607,6 +609,7 @@ class HypeLockDecoration {
 
     // Вступление: волны цветов акцента, потом проявление часов.
     playIntro(onDone) {
+        global.display.get_sound_player().play_from_theme('hypede-lock', 'lock', null);
         // Экран блокировки GNOME переиспользуется между блокировками —
         // вернуть то, что свернула прошлая разблокировка.
         for (const actor of [this._clock, ...this._cards.map(c => c.actor)]) {
@@ -628,7 +631,8 @@ class HypeLockDecoration {
                 mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             });
         };
-        if (!this._settings.get_boolean('lock-intro-animation') || _duration(INTRO_TIME) === 0) {
+        if (!this._settings.get_boolean('lock-intro-animation') || this._settings.get_boolean('lite-mode') ||
+            _duration(INTRO_TIME) === 0) {
             reveal();
             onDone?.();
             return;
@@ -657,14 +661,21 @@ class HypeLockDecoration {
 
     // Разблокировка: содержимое «сворачивается» к центру.
     playUnlock() {
+        global.display.get_sound_player().play_from_theme('hypede-unlock', 'unlock', null);
         for (const actor of [this._clock, ...this._cards.map(c => c.actor)]) {
             actor.set_pivot_point(0.5, 0.5);
+            // Масштаб — с «оттяжкой», прозрачность — ровно: перелёт
+            // прозрачности за 0 дал бы вспышку.
             actor.ease({
                 scale_x: 0.6,
                 scale_y: 0.6,
-                opacity: 0,
                 duration: UNLOCK_TIME * 0.8,
                 mode: Clutter.AnimationMode.EASE_IN_BACK,
+            });
+            actor.ease({
+                opacity: 0,
+                duration: UNLOCK_TIME * 0.8,
+                mode: Clutter.AnimationMode.EASE_IN_CUBIC,
             });
         }
     }
@@ -684,7 +695,7 @@ class HypeLockDecoration {
 export class LockScreen {
     constructor(settings) {
         this._settings = settings;
-        this._shield = Main.screenShield;
+        this._shield = getShield();
         this._injections = new InjectionManager();
         if (!this._shield)
             return;
@@ -739,9 +750,13 @@ export class LockScreen {
                 group.set_pivot_point(0.5, 0.5);
                 decoration.playUnlock();
                 group.ease({
+                    opacity: 0,
+                    duration: UNLOCK_TIME,
+                    mode: Clutter.AnimationMode.EASE_IN_CUBIC,
+                });
+                group.ease({
                     scale_x: 0.92,
                     scale_y: 0.92,
-                    opacity: 0,
                     duration: UNLOCK_TIME,
                     mode: Clutter.AnimationMode.EASE_IN_BACK,
                     onComplete: () => {

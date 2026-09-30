@@ -1,6 +1,6 @@
 # HypeDE — сборка и установка.
 #
-#   make                 собрать «Настройки» (C++/Qt) и переводы
+#   make                 собрать «Настройки» (C++/Qt), hypede-auth и переводы
 #   sudo make install    установить всё в /usr
 #   make install-user    поставить только оболочку в ~/.local (для пробы
 #                        в обычном сеансе GNOME, без sudo)
@@ -22,6 +22,10 @@ JOBS ?= $(shell awk -v cpus="$$(nproc 2>/dev/null || echo 1)" \
 	'/^MemAvailable:/ { j = int($$2 / 700000); if (j > cpus) j = cpus; if (j < 1) j = 1; print j }' \
 	/proc/meminfo 2>/dev/null || echo 1)
 
+SYSCONFDIR ?= /etc
+CC      ?= cc
+CFLAGS  ?= -O2
+
 DATADIR   := $(PREFIX)/share
 BINDIR    := $(PREFIX)/bin
 LIBDIR    := $(PREFIX)/lib
@@ -34,6 +38,7 @@ SHELLDATADIR := $(DATADIR)/hypede/shell
 EXTDIR    := $(SHELLDATADIR)/gnome-shell/extensions/$(UUID)
 MODESDIR  := $(SHELLDATADIR)/gnome-shell/modes
 FILESDIR  := $(DATADIR)/hypede/files
+ASSISTANTDIR := $(DATADIR)/hypede/assistant
 SYSTEMDUSERDIR := $(LIBDIR)/systemd/user
 
 # Подстановка путей в файлы сеанса
@@ -46,12 +51,13 @@ EXT_FILES := $(wildcard shell/extension/$(UUID)/*.js) \
              $(wildcard shell/extension/$(UUID)/*.css) \
              shell/extension/$(UUID)/metadata.json
 FILES_PY  := $(wildcard apps/files/hypede_files/*.py) apps/files/hypede_files/style.css
+ASSISTANT_PY := $(wildcard apps/assistant/hypede_assistant/*.py)
 WALLPAPERS := $(wildcard assets/wallpapers/*.svg) $(wildcard assets/wallpapers/*.png)
 
-.PHONY: all settings mo css pot check install install-shell install-session install-data \
-        install-files install-settings install-user uninstall-user clean
+.PHONY: all settings auth mo css pot check install install-shell install-session install-data \
+        install-files install-assistant install-settings install-user uninstall-user clean
 
-all: settings mo
+all: settings auth mo
 
 # ---------- сборка ----------
 
@@ -59,6 +65,13 @@ settings:
 	cmake -S apps/settings -B '$(BUILD)/settings' -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX='$(PREFIX)'
 	@echo "Сборка «Настроек», одновременных заданий: $(JOBS)"
 	cmake --build '$(BUILD)/settings' --parallel $(JOBS)
+
+# Проверка пароля для экрана блокировки без GDM (см. session/hypede-auth.c).
+auth: $(BUILD)/hypede-auth
+
+$(BUILD)/hypede-auth: session/hypede-auth.c
+	mkdir -p '$(BUILD)'
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -Wall -o '$@' session/hypede-auth.c -lpam
 
 mo:
 	mkdir -p '$(BUILD)/locale/ru/LC_MESSAGES'
@@ -70,14 +83,14 @@ css:
 	python3 tools/gen-shell-css.py
 
 pot:
-	xgettext --from-code=UTF-8 -L Python -k_ -kngettext:1,2 -o '$(BUILD)/files.pot' apps/files/hypede_files/*.py
+	xgettext --from-code=UTF-8 -L Python -k_ -kngettext:1,2 -o '$(BUILD)/files.pot' apps/files/hypede_files/*.py apps/assistant/hypede_assistant/*.py
 	xgettext --from-code=UTF-8 -L JavaScript -k_ -kngettext:1,2 -o '$(BUILD)/shell.pot' shell/extension/$(UUID)/*.js
 	msgcat '$(BUILD)/files.pot' '$(BUILD)/shell.pot' -o po/hypede.pot
 	python3 tools/i18n/make-po.py
 
 check:
 	for f in shell/extension/$(UUID)/*.js; do node --check --input-type=module < $$f || exit 1; done
-	python3 -m py_compile apps/files/hypede_files/*.py
+	python3 -m py_compile apps/files/hypede_files/*.py apps/assistant/hypede_assistant/*.py
 	python3 -m unittest discover -s apps/files/tests -t apps/files
 	node shell/tests/calculator.test.mjs
 	glib-compile-schemas --strict --dry-run data/schemas
@@ -86,14 +99,14 @@ check:
 
 # ---------- установка ----------
 
-install: install-shell install-session install-data install-files install-settings
+install: install-shell install-session install-data install-files install-assistant install-settings
 
 install-shell:
 	$(INSTALL) -d '$(DESTDIR)$(EXTDIR)'
 	$(INSTALL_DATA) $(EXT_FILES) '$(DESTDIR)$(EXTDIR)'/
 	$(INSTALL) -Dm644 shell/modes/hypede.json '$(DESTDIR)$(MODESDIR)'/hypede.json
 
-install-session:
+install-session: auth
 	mkdir -p '$(BUILD)/session'
 	$(SUBST) session/hypede.desktop > '$(BUILD)/session/hypede.desktop'
 	$(SUBST) session/hypede-session.in > '$(BUILD)/session/hypede-session'
@@ -105,6 +118,8 @@ install-session:
 	$(INSTALL) -Dm755 '$(BUILD)/session/hypede-session' '$(DESTDIR)$(LIBEXECDIR)'/hypede-session
 	$(INSTALL) -Dm755 '$(BUILD)/session/hypede-session-cleanup' '$(DESTDIR)$(LIBEXECDIR)'/hypede-session-cleanup
 	$(INSTALL) -Dm755 session/hypede-autostart-filter '$(DESTDIR)$(LIBEXECDIR)'/hypede-autostart-filter
+	$(INSTALL) -Dm755 '$(BUILD)/hypede-auth' '$(DESTDIR)$(LIBEXECDIR)'/hypede-auth
+	$(INSTALL) -Dm644 session/pam-hypede '$(DESTDIR)$(SYSCONFDIR)'/pam.d/hypede
 	$(INSTALL) -Dm644 session/dconf-profile '$(DESTDIR)$(DATADIR)'/dconf/profile/hypede
 	$(INSTALL) -Dm644 session/systemd/hypede.session.conf \
 		'$(DESTDIR)$(SYSTEMDUSERDIR)'/gnome-session@hypede.target.d/hypede.session.conf
@@ -124,6 +139,12 @@ install-data: mo
 	$(INSTALL) -Dm644 data/applications/dev.hypede.Settings.desktop '$(DESTDIR)$(DATADIR)'/applications/dev.hypede.Settings.desktop
 	cd assets/icons && find hicolor -type f \( -name '*.svg' -o -name '*.png' \) ! -name 'dev.hypede.Launcher*' -exec \
 		$(INSTALL) -Dm644 '{}' '$(DESTDIR)$(DATADIR)/icons/{}' ';'
+	$(INSTALL) -d '$(DESTDIR)$(DATADIR)'/icons/HypeDE/symbolic
+	$(INSTALL_DATA) data/icons/HypeDE/index.theme data/icons/HypeDE/LICENSE '$(DESTDIR)$(DATADIR)'/icons/HypeDE/
+	$(INSTALL_DATA) data/icons/HypeDE/symbolic/*.svg '$(DESTDIR)$(DATADIR)'/icons/HypeDE/symbolic/
+	$(INSTALL) -d '$(DESTDIR)$(DATADIR)'/sounds/hypede/stereo
+	$(INSTALL_DATA) data/sounds/hypede/index.theme '$(DESTDIR)$(DATADIR)'/sounds/hypede/
+	$(INSTALL_DATA) data/sounds/hypede/stereo/*.oga '$(DESTDIR)$(DATADIR)'/sounds/hypede/stereo/
 	$(INSTALL) -Dm644 branding/hypede-logo.svg '$(DESTDIR)$(DATADIR)'/icons/hicolor/scalable/apps/hypede.svg
 	$(INSTALL) -Dm644 branding/hypede-symbolic.svg '$(DESTDIR)$(DATADIR)'/icons/hicolor/symbolic/apps/hypede-symbolic.svg
 	$(INSTALL) -Dm644 '$(BUILD)/locale/ru/LC_MESSAGES/hypede.mo' '$(DESTDIR)$(DATADIR)'/locale/ru/LC_MESSAGES/hypede.mo
@@ -139,6 +160,20 @@ install-files:
 		'from hypede_files.application import main' \
 		'sys.exit(main())' > '$(BUILD)/hypede-files'
 	$(INSTALL) -Dm755 '$(BUILD)/hypede-files' '$(DESTDIR)$(BINDIR)'/hypede-files
+
+# ИИ-помощник: встроенный браузер (WebKitGTK) с чатом провайдера.
+install-assistant:
+	$(INSTALL) -d '$(DESTDIR)$(ASSISTANTDIR)'/hypede_assistant
+	$(INSTALL_DATA) $(ASSISTANT_PY) '$(DESTDIR)$(ASSISTANTDIR)'/hypede_assistant/
+	mkdir -p '$(BUILD)'
+	printf '%s\n' '#!/usr/bin/env python3' \
+		'# ИИ-помощник HypeDE' \
+		'import sys' \
+		'sys.path.insert(0, "$(ASSISTANTDIR)")' \
+		'from hypede_assistant.app import main' \
+		'sys.exit(main())' > '$(BUILD)/hypede-assistant'
+	$(INSTALL) -Dm755 '$(BUILD)/hypede-assistant' '$(DESTDIR)$(BINDIR)'/hypede-assistant
+	$(INSTALL) -Dm644 data/applications/dev.hypede.Assistant.desktop '$(DESTDIR)$(DATADIR)'/applications/dev.hypede.Assistant.desktop
 
 install-settings:
 	DESTDIR='$(DESTDIR)' cmake --install '$(BUILD)/settings'

@@ -244,6 +244,7 @@ msgid "MB"
 msgstr "МБ"
 
 #: apps/files/hypede_files/util.py:16
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:162
 msgid "GB"
 msgstr "ГБ"
 
@@ -320,7 +321,7 @@ msgstr "О программе"
 #: apps/files/hypede_files/window.py:88 apps/files/hypede_files/window.py:985
 #: apps/files/hypede_files/window.py:1003
 #: shell/extension/hypede-shell@hypede.dev/actions.js:173
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:814
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:837
 msgid "Files"
 msgstr "Файлы"
 
@@ -1059,7 +1060,7 @@ msgid "Security and privacy"
 msgstr "Безопасность и конфиденциальность"
 
 #: shell/extension/hypede-shell@hypede.dev/launcher.js:69
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:749
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:772
 msgid "Apps"
 msgstr "Приложения"
 
@@ -1088,47 +1089,47 @@ msgid "Continue where you left off"
 msgstr "Недавние файлы"
 
 #: shell/extension/hypede-shell@hypede.dev/launcher.js:451
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:729
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:752
 #, javascript-format
 msgid "Ask %s"
 msgstr "Спросить %s"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:689
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:712
 msgid "Actions"
 msgstr "Действия"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:710
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:733
 msgid "Press Enter to copy the result"
 msgstr "Нажмите Enter, чтобы скопировать результат"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:771
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:776
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:794
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:799
 msgid "Settings"
 msgstr "Настройки"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:832
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:855
 #, javascript-format
 msgid "Search for “%s” in Files"
 msgstr "Найти «%s» в «Файлах»"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:833
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:856
 msgid "Search in the home folder"
 msgstr "Поиск в домашней папке"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:856
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:879
 msgid "Web"
 msgstr "Интернет"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:862
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:885
 #, javascript-format
 msgid "Search with %s"
 msgstr "Искать в %s"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:862
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:885
 msgid "Search the web"
 msgstr "Поиск в интернете"
 
-#: shell/extension/hypede-shell@hypede.dev/launcher.js:931
+#: shell/extension/hypede-shell@hypede.dev/launcher.js:954
 msgid "Launcher"
 msgstr "Лаунчер"
 
@@ -1141,14 +1142,18 @@ msgid "Sorry, that didn’t work. Please try again."
 msgstr "Неверный пароль. Попробуйте ещё раз."
 
 #: shell/extension/hypede-shell@hypede.dev/lockscreen.js:336
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:30
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:141
 msgid "System"
 msgstr "Система"
 
 #: shell/extension/hypede-shell@hypede.dev/lockscreen.js:337
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:138
 msgid "Processor"
 msgstr "Процессор"
 
 #: shell/extension/hypede-shell@hypede.dev/lockscreen.js:338
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:139
 msgid "Memory"
 msgstr "Память"
 
@@ -1163,6 +1168,7 @@ msgid "Up for %d h %d min"
 msgstr "Без перезагрузки %d ч %d мин"
 
 #: shell/extension/hypede-shell@hypede.dev/lockscreen.js:382
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:140
 msgid "Battery"
 msgstr "Батарея"
 
@@ -1265,3 +1271,59 @@ msgstr "Полка"
 #, javascript-format
 msgid "%b %-d"
 msgstr "%-d %b"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:29
+msgid "Clock"
+msgstr "Часы"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:29
+msgid "Calendar"
+msgstr "Календарь"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:29
+msgid "Weather"
+msgstr "Погода"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:30
+msgid "Music"
+msgstr "Музыка"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:30
+msgid "Note"
+msgstr "Заметка"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:111
+msgid "Choose a city in Weather"
+msgstr "Выберите город в «Погоде»"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:111
+msgid "Install GNOME Weather"
+msgstr "Установите «Погоду» GNOME"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:112
+msgid "Click to open"
+msgstr "Нажмите, чтобы открыть"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:118
+msgid "Loading…"
+msgstr "Загрузка…"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:118
+msgid "Weather unavailable"
+msgstr "Погода недоступна"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:225
+msgid "Write something…"
+msgstr "Напишите что-нибудь…"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:399
+msgid "Add widget"
+msgstr "Добавить виджет"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:412
+msgid "Return to the column"
+msgstr "Вернуть в столбик"
+
+#: shell/extension/hypede-shell@hypede.dev/widgets.js:418
+msgid "Remove widget"
+msgstr "Убрать виджет"

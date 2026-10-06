@@ -255,6 +255,10 @@ RU = {
     'Animation speed': 'Скорость анимаций',
     'Window animations': 'Анимации окон',
     'Soft (HypeDE)': 'Мягкие (HypeDE)',
+    'Genie minimize': 'Сворачивание «джинном»',
+    'Windows flow into their shelf icon': 'Окно перетекает в значок на полке',
+    'Jelly windows': 'Желейные окна',
+    'Windows bend and spring back while you drag them': 'При перетаскивании окно изгибается и пружинит',
     'GNOME': 'GNOME',
     'Corner rounding': 'Скругление углов',
     'Menu opacity': 'Непрозрачность меню',
@@ -407,6 +411,8 @@ CONTEXT_RU = {
     ("Catalog", "Zoom"): "Экранная лупа",
     ("AutostartBlock", "System"): "Системная",
     ("System", "System"): "Система",
+    ("WidgetsBlock", "System"): "Система",
+    ("WidgetsBlock", "Calendar"): "Календарь",
 }
 
 # Версия 2.1: вычитанные формулировки и новые разделы. Более поздние
@@ -566,4 +572,36 @@ RU.update({
     "Clear": "Очистить", "New focus mode": "Новый режим фокуса", "My mode": "Мой режим", "Focus modes": "Режимы фокуса",
     "Session": "Сеанс", "Restore windows at sign-in": "Восстанавливать окна при входе", "Ask": "Спрашивать",
     "Always": "Всегда", "Never": "Никогда", "Theme": "Тема", "Do Not Disturb": "Не беспокоить",
+})
+
+RU.update({
+    'Widgets': 'Виджеты',
+    'Clock': 'Часы',
+    'Weather': 'Погода',
+    'City is taken from the Weather app': 'Город берётся из приложения «Погода»',
+    'Processor, memory and battery': 'Процессор, память и батарея',
+    'Music': 'Музыка',
+    'Shown while something is playing': 'Виден, пока что-то играет',
+    'Note': 'Заметка',
+})
+
+RU.update({
+    'Theme store': 'Магазин тем',
+    'Theme installed and applied': 'Тема установлена и применена',
+    '“%1” is ready. Confirm the request on GitHub — the bot adds it within a minute': '«%1» готова. Подтвердите заявку на GitHub — бот добавит тему в течение минуты',
+    'Downloading…': 'Загрузка…',
+    'Installing…': 'Ставлю…',
+    'Install': 'Установить',
+    'Install or publish from GitHub': 'Установить или опубликовать с GitHub',
+    'Public repository with theme.json (Export current look) and preview.png in the root': 'Открытый репозиторий с theme.json («Экспорт текущего вида») и preview.png в корне',
+    'Publish': 'Опубликовать',
+    'Checking the repository…': 'Проверяю репозиторий…',
+    'Refresh the store': 'Обновить магазин',
+    'Loading…': 'Загрузка…',
+    'Refresh': 'Обновить',
+})
+
+RU.update({
+    'Four-finger gestures': 'Жесты четырьмя пальцами',
+    'Up — launcher, down — desktop. Three fingers: up — overview, sideways — desks': 'Вверх — лаунчер, вниз — рабочий стол. Тремя пальцами: вверх — обзор, вбок — рабочие столы',
 })

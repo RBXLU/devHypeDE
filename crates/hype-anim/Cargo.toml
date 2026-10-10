@@ -1,0 +1,15 @@
+[package]
+name = "hype-anim"
+description = "Animation engine for HypeDE: easing curves, spring physics, retargetable animations"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true, optional = true }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]

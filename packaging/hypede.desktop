@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=HypeDE
+Comment=Среда рабочего стола HypeDE на Wayland
+Exec=hypede-comp
+TryExec=hypede-comp
+Type=Application
+DesktopNames=HypeDE
+Keywords=wayland;compositor;hypede;
